@@ -1,6 +1,3 @@
-README.txt - Projeto Pink Boom
-==============================
-
 Visão Geral
 -----------
 O Projeto Pink Boom é um sistema completo que une software e hardware para controlar, monitorar e analisar lançamentos de foguetes d’água com alta precisão e segurança. O objetivo é atingir distâncias de 10, 20 e 30 metros com margem de erro de até 0,5 metro, utilizando sensores embarcados, plataforma automatizada e software de análise.
