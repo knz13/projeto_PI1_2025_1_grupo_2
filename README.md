@@ -4,17 +4,8 @@ O Projeto Pink Boom é um sistema completo que une software e hardware para cont
 
 Estrutura do Projeto
 --------------------
-/
-├── backend/                 # Servidor backend TypeScript + Express.js
-│   ├── src/
-│   │   ├── index.ts        # Ponto de entrada principal do servidor
-│   │   ├── interfaces.ts   # Interfaces e tipos TypeScript
-│   │   └── utils.ts        # Funções utilitárias
-│   ├── package.json        # Dependências e scripts Node.js
-│   ├── tsconfig.json       # Configuração do TypeScript
-│   └── nodemon.json        # Configuração para hot-reload
-│
-└── frontend/               # Interface Flutter (a ser implementada)
+![project_structure](https://github.com/user-attachments/assets/26a1985c-80e7-4cd7-8c72-e4fa9070c58b)
+
 
 Configuração do Backend
 ------------------------
