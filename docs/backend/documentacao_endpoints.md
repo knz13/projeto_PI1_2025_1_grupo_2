@@ -1,11 +1,11 @@
 
-| Dado | Método | Endpoint                  | Descrição                          |
-| ---- | ------ | ------------------------- | ---------------------------------- |
-|      | POST   | /launches                 |                                    |
-|      | GET    | /launches/                | Lista lançamentos                  |
-|      | GET    | /launches/{id}            | Obter detalhes de um lançamento    |
-|      | GET    | /launches/{id}/trajectory | Puxa dado de lançamento específico |
-|      | DELETE | /launches/{id}            | Remove um lançamento do sistema.   |
+| Método | Endpoint                  | Descrição                          |
+| ------ | ------------------------- | ---------------------------------- |
+| POST   | /launches                 |                                    |
+| GET    | /launches/                | Lista lançamentos                  |
+| GET    | /launches/{id}            | Obter detalhes de um lançamento    |
+| GET    | /launches/{id}/trajectory | Puxa dado de lançamento específico |
+| DELETE | /launches/{id}            | Remove um lançamento do sistema.   |
 
 ## Observações sobre os Dados de Gráfico
 
