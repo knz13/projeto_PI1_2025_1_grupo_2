@@ -13,6 +13,7 @@ linked_*.ds
 unlinked.ds
 unlinked_spec.ds
 .venv/
+**/.next/**
 
 # Android related
 **/android/**/gradle-wrapper.jar
