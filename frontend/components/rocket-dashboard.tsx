@@ -1,14 +1,58 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import LaunchCharts from "@/components/launch-charts"
 import PinkBoomLogo from "@/components/pink-boom-logo"
-import { launchData } from "@/lib/data"
+import { Environment } from "@/lib/environment"
 
 export default function RocketDashboard() {
   const [activeTab, setActiveTab] = useState("rocket")
+
+  /* const [launchData, setLaunchData] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+
+  useEffect(() => {
+    setIsLoading(true)
+    fetch(Environment.get_backend_url() + "/dados/dados-lancamentos-total")
+      .then(res => res.json())
+      .then(data => {
+        setLaunchData(data)
+        setIsLoading(false)
+      })
+  }, [])
+
+  if (isLoading) {
+    return <div>Loading...</div>
+  }
+ */
+
+  const [launchData, setLaunchData] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+
+  useEffect(() => {
+
+    console.log("Calling use effect!");
+    var funcAsync = async () => {
+      setIsLoading(true);
+
+      var result = await fetch("http://localhost:5875/dados/dados-lancamento", { method: "GET" });
+
+      if (result.status == 200) {
+        var resultJson = await result.json();
+
+        setLaunchData(resultJson);
+        setIsLoading(false);
+      }
+    };
+
+    funcAsync();
+  }, [
+  ]);
+
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -50,25 +94,25 @@ export default function RocketDashboard() {
                         <div className="flex justify-between">
                           <span className="text-gray-500">Altitude Máx:</span>
                           <span className="font-medium">
-                            {Math.max(...launch.data.map((d) => d.altitude)).toFixed(1)} m
+                            {Math.max(...launch.data.map((d: any) => d.altitude)).toFixed(1)} m
                           </span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-gray-500">Posição Máx:</span>
                           <span className="font-medium">
-                            {Math.max(...launch.data.map((d) => d.position)).toFixed(1)} m
+                            {Math.max(...launch.data.map((d: any) => d.position)).toFixed(1)} m
                           </span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-gray-500">Velocidade Máx:</span>
                           <span className="font-medium">
-                            {Math.max(...launch.data.map((d) => d.velocity)).toFixed(1)} m/s
+                            {Math.max(...launch.data.map((d: any) => d.velocity)).toFixed(1)} m/s
                           </span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-gray-500">Aceleração Máx:</span>
                           <span className="font-medium">
-                            {Math.max(...launch.data.map((d) => d.acceleration)).toFixed(1)} m/s²
+                            {Math.max(...launch.data.map((d: any) => d.acceleration)).toFixed(1)} m/s²
                           </span>
                         </div>
                       </div>

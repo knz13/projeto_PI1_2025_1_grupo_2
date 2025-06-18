@@ -9,9 +9,7 @@ export enum RequestType {
 
 export interface EndpointController {
     name: string;
-    routes: {
-        [key: string]: Pair<RequestType, (req: Request, res: Response) => Promise<Response | void>>
-    };
+    routes: { [key: string]: Pair<RequestType, (req: Request, res: Response) => Promise<Response> | Promise<void>> };
 }
 
 

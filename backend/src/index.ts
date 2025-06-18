@@ -15,14 +15,48 @@ import bodyParser from 'body-parser';
 import cors from "cors";
 
 import * as fs from 'fs';
-const raw = fs.readFileSync("frontend/lib/data.json", "utf-8")
-const launchData = JSON.parse(raw)
+import { launchData } from './dados_controller';
 
 dotenv.config();
 
 SupabaseWrapper.init();
 
 const router = express.Router();
+
+//http://meu-servidor.com/dados/dados-lancamento
+
+
+const app: Express = express();
+
+
+
+expressws(app);
+
+app.use(fileUpload())
+app.use(bodyParser.json({ limit: 500 * 1024 * 1024, }));
+app.use(function (req, res, next) {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+    next();
+});
+
+
+app.use(router);
+
+app.get("/dados/dados-lancamento", (req, res) => {
+    console.log("Recebendo requisição em dados/dados-lancamento!");
+    return res.json(launchData);
+
+});
+app.listen(process.env.PORT ?? 5875, () => {
+    console.log(`Server running on port ${process.env.PORT ?? 5875}`);
+});
+
+
+
+/* 
+
+
 
 const controllers: EndpointController[] = [];
 
@@ -66,27 +100,9 @@ controllers.forEach(controller => {
     });
 });
 
-const app: Express = express();
-
-expressws(app);
-
-app.use(fileUpload())
-app.use(bodyParser.json({ limit: 500 * 1024 * 1024, }));
-app.use(function (req, res, next) {
-    res.header("Access-Control-Allow-Origin", "*");
-    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
-    next();
-});
 
 
-app.use(router);
-
-app.listen(process.env.PORT ?? 3000, () => {
-    console.log(`Server running on port ${process.env.PORT ?? 3000}`);
-});
-
-
-function setNewLaunch(
+/* function setNewLaunch(
     newName: string,
     newTarget: string,
     newTimestamp: string,
@@ -126,6 +142,6 @@ function setData(
         acceleration: newAcceleration
     });
     fs.writeFileSync("frontend/lib/data.json", JSON.stringify(launchData, null, 2), "utf-8")
-}
+} */
 
 
