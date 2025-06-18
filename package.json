@@ -1,0 +1,24 @@
+{
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "name": "projeto_pi1_2025_1_grupo_2-main",
+  "version": "1.0.0",
+  "description": "Visão Geral ----------- O Projeto Pink Boom é um sistema completo que une software e hardware para controlar, monitorar e analisar lançamentos de foguetes d’água com alta precisão e segurança. O objetivo é atingir distâncias de 10, 20 e 30 metros com margem de erro de até 0,5 metro, utilizando sensores embarcados, plataforma automatizada e software de análise.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "scripts": {
+
+    "dev": "concurrently \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}
