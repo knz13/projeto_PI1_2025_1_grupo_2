@@ -14,7 +14,11 @@ unlinked.ds
 unlinked_spec.ds
 .venv/
 
-**/.next/** 
+# Next.js specific
+.next/
+frontend/.next/
+out/
+.vercel/
 
 # Android related
 **/android/**/gradle-wrapper.jar

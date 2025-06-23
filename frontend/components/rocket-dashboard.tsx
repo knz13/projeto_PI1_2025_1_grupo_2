@@ -44,6 +44,8 @@ export default function RocketDashboard() {
       if (result.status == 200) {
         var resultJson = await result.json();
 
+        console.log("Result JSON:", resultJson);
+
         setLaunchData(resultJson);
         setIsLoading(false);
       }

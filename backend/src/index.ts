@@ -15,7 +15,7 @@ import bodyParser from 'body-parser';
 import cors from "cors";
 
 import * as fs from 'fs';
-import { launchData } from './dados_controller';
+import { DadosController } from './dados_controller';
 
 dotenv.config();
 
@@ -41,24 +41,20 @@ app.use(function (req, res, next) {
 });
 
 
-app.use(router);
-
-app.get("/dados/dados-lancamento", (req, res) => {
-    console.log("Recebendo requisição em dados/dados-lancamento!");
-    return res.json(launchData);
-
-});
-app.listen(process.env.PORT ?? 5875, () => {
-    console.log(`Server running on port ${process.env.PORT ?? 5875}`);
-});
 
 
 
-/* 
 
 
 
-const controllers: EndpointController[] = [];
+
+
+
+
+
+const controllers: EndpointController[] = [
+    DadosController
+];
 
 controllers.forEach(controller => {
     Object.keys(controller.routes).forEach(route_name => {
@@ -98,6 +94,14 @@ controllers.forEach(controller => {
                 break;
         }
     });
+});
+
+
+
+app.use(router);
+
+app.listen(process.env.PORT ?? 5875, () => {
+    console.log(`Server running on port ${process.env.PORT ?? 5875}`);
 });
 
 
