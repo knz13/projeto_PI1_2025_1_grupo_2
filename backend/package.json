@@ -9,7 +9,9 @@
         "build": "tsc",
         "watch": "tsc -w",
         "clean": "rimraf dist",
-        "test-ws": "ts-node test/teste_websocket_placeholder.ts"
+        "test-ws": "ts-node test/teste_websocket_placeholder.ts",
+        "start-and-monitor": "python3 start_and_monitor.py",
+        "build-and-start": "npm run build && npm run start"
     },
     "dependencies": {
         "@supabase/supabase-js": "^2.43.4",
