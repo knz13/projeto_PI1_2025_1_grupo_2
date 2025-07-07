@@ -11,7 +11,7 @@ export default function LaunchCharts() {
   const positionAltitudeData = launchData.flatMap((launch, index) => {
     return launch.data.map((point) => ({
       ...point,
-      launchName: `Lançamento ${index + 1} (${index === 0 ? "10m" : index === 1 ? "20m" : "30m"})`,
+      launchName: `LAUNCH ${index + 1} (${index === 0 ? "10m" : index === 1 ? "20m" : "30m"})`,
       launchIndex: index,
     }))
   })
@@ -27,9 +27,6 @@ export default function LaunchCharts() {
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto">
-
-      
-
       <Card>
         <CardHeader className="bg-pink-50">
           <CardTitle className="text-lg text-pink-700">Posição vs. Altitude</CardTitle>
@@ -47,12 +44,12 @@ export default function LaunchCharts() {
                 </YAxis>
                 <Tooltip
                   formatter={(value, name) => [
-                    `${Number.parseFloat(value as string).toFixed(2)}`,
-                    name === "altitude" ? "Altitude (m)" : "Posição (m)",
+                  `${Number.parseFloat(value as string).toFixed(2)}`,
+                  name === "altitude" ? "Altitude (m)" : "Posição (m)",
                   ]}
                   labelFormatter={(label) => `Posição: ${Number.parseFloat(label).toFixed(2)} m`}
                 />
-                <Legend />
+                <Legend wrapperStyle={{ paddingTop: 20 }} />
                 {launchData.map((_, index) => (
                   <Line
                     key={index}
@@ -94,7 +91,7 @@ export default function LaunchCharts() {
                   ]}
                   labelFormatter={(label) => `Velocidade: ${Number.parseFloat(label).toFixed(2)} m/s`}
                 />
-                <Legend/>
+                <Legend wrapperStyle={{ paddingTop: 20 }}/>
                 {launchData.map((_, index) => (
                   <Line 
                     key={index}
