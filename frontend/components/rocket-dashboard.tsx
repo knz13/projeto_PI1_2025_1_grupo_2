@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import LaunchCharts from "@/components/launch-charts"
 import PinkBoomLogo from "@/components/pink-boom-logo"
 import { Environment } from "@/lib/environment"
+import { Button } from "./ui/button"
 
 export default function RocketDashboard() {
   const [activeTab, setActiveTab] = useState("rocket")
@@ -63,15 +64,20 @@ export default function RocketDashboard() {
         <p className="text-gray-600 text-sm mt-1">Sistema de Análise de Lançamentos de Foguetes d'Água</p>
       </div>
 
-      <Tabs defaultValue="rocket" className="w-full" onValueChange={setActiveTab}>
+      <Tabs defaultValue="rocket" className="w-full max-w-6xl mx-auto" onValueChange={setActiveTab}>
         <TabsList className="w-full justify-start mb-6 bg-pink-50 border-pink-100 border">
           <TabsTrigger value="rocket" className="data-[state=active]:bg-pink-500 data-[state=active]:text-white">
             Dados do Foguete
           </TabsTrigger>
         </TabsList>
+        <div className="w-full flex justify-center mb-6 bg-white">
+          <Button value="rocket" className="w-[120px] h-[50px] data-[state=active] bg-pink-500 data-[state=active]:text-white border-b-2 border-pink-700 rounded-2xl hover:bg-pink-700 transition-colors font-semibold">
+            Lançar !
+          </Button>
+        </div>
 
         <TabsContent value="rocket" className="space-y-6">
-          <Card>
+          <Card className="max-w-6xl mx-auto">
             <CardHeader className="bg-pink-50">
               <CardTitle className="text-xl text-pink-700">Análise de Lançamentos</CardTitle>
             </CardHeader>

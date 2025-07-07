@@ -26,7 +26,7 @@ export default function LaunchCharts() {
   })
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 max-w-6xl mx-auto">
 
       
 
@@ -47,7 +47,7 @@ export default function LaunchCharts() {
                 </YAxis>
                 <Tooltip
                   formatter={(value, name) => [
-                    `${Number.parseFloat(value).toFixed(2)}`,
+                    `${Number.parseFloat(value as string).toFixed(2)}`,
                     name === "altitude" ? "Altitude (m)" : "Posição (m)",
                   ]}
                   labelFormatter={(label) => `Posição: ${Number.parseFloat(label).toFixed(2)} m`}
@@ -89,14 +89,14 @@ export default function LaunchCharts() {
                 </YAxis>
                 <Tooltip
                   formatter={(value, name) => [
-                    `${Number.parseFloat(value).toFixed(2)}`,
+                    `${Number.parseFloat(value as string).toFixed(2)}`,
                     name === "acceleration" ? "Aceleração (m/s²)" : "Velocidade (m/s)",
                   ]}
                   labelFormatter={(label) => `Velocidade: ${Number.parseFloat(label).toFixed(2)} m/s`}
                 />
-                <Legend />
+                <Legend/>
                 {launchData.map((_, index) => (
-                  <Line
+                  <Line 
                     key={index}
                     type="monotone"
                     dataKey="acceleration"
