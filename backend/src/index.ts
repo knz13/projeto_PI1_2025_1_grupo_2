@@ -48,7 +48,17 @@ app.use(function (req, res, next) {
 
 
 
-
+app.get("/", (req: Request, res: Response) => {
+    const processInfo = {
+        pid: process.pid,
+        platform: process.platform,
+        version: process.version,
+        memory: process.memoryUsage(),
+        uptime: process.uptime(),
+        env: process.env.NODE_ENV || 'development'
+    };
+    res.json(processInfo);
+});
 
 
 const controllers: EndpointController[] = [
