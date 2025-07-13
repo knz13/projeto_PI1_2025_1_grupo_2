@@ -6,8 +6,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: projeto-backend
-    ports:
-      - "5712:5712"    # Expose backend port for direct access and debugging
+    # No external ports - only accessible through nginx
     environment:
       - NODE_ENV=production
       - PORT=5712
@@ -46,7 +45,7 @@ services:
     image: nginx:alpine
     container_name: projeto-nginx
     ports:
-      - "5712:5712"    # Backend HTTP (main port)
+      - "5712:5712"    # External access through nginx
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
