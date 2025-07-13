@@ -4,14 +4,11 @@ FROM node:18-bullseye
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies for PDF processing and other requirements
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
     python3-dev \
-    poppler-utils \
-    tesseract-ocr \
-    tesseract-ocr-por \
     git \
     curl \
     sudo \
