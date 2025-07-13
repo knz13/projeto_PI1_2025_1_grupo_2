@@ -11,14 +11,17 @@ WORKDIR /app
 # Copie o package.json e package-lock.json (se disponível)
 COPY package*.json ./
 
-# Instale as dependências
-RUN npm ci --only=production
+# Instale todas as dependências (incluindo devDependencies para o build)
+RUN npm ci
 
 # Copie o código fonte
 COPY . .
 
 # Compile o TypeScript
 RUN npm run build
+
+# Remova as devDependencies após o build para otimizar a imagem
+RUN npm prune --production
 
 # Exponha a porta que o backend usa internamente
 EXPOSE 5875
