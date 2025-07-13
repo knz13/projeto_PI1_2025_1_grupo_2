@@ -1,0 +1,58 @@
+# Git e documentação
+.git/
+.gitignore
+*.md
+LICENSE
+
+# Logs e cache
+*.log
+logs/
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Backend específico
+backend/node_modules/
+backend/dist/
+backend/.env*
+backend/logs/*.log
+
+# Frontend específico
+frontend/.next/
+frontend/node_modules/
+frontend/.dart_tool/
+frontend/.packages
+frontend/build/
+frontend/.flutter-plugins
+frontend/.flutter-plugins-dependencies
+frontend/android/
+frontend/ios/
+frontend/linux/
+frontend/macos/
+frontend/windows/
+frontend/web/
+frontend/test/
+
+# Docker files (don't copy into container)
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+# Scripts (don't copy into container)
+scripts/
+
+# Documentation
+docs/
+
+# Outros
+coverage/
+.nyc_output/
+.env
+.env.local
+.env.production 
