@@ -14,6 +14,8 @@ unlinked.ds
 unlinked_spec.ds
 .venv/
 
+*/.env
+
 # Next.js specific
 .next/
 frontend/.next/

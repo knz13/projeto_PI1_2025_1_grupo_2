@@ -36,13 +36,25 @@ startWsServer(appWs);
 
 
 
-app.use(fileUpload())
-app.use(bodyParser.json({ limit: 500 * 1024 * 1024, }));
-app.use(function (req, res, next) {
-    res.header("Access-Control-Allow-Origin", "*");
-    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
-    next();
-});
+// Configure CORS
+const corsOrigin = process.env.CORS_ORIGIN || "*";
+app.use(cors({
+    origin: corsOrigin,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization']
+}));
+
+// Configure file upload limits
+const maxFileSize = parseInt(process.env.MAX_FILE_SIZE || '524288000'); // 500MB default
+app.use(fileUpload({
+    limits: { fileSize: maxFileSize }
+}));
+
+// Configure body parser limits
+const maxBodySize = process.env.MAX_BODY_SIZE || '500mb';
+app.use(bodyParser.json({ limit: maxBodySize }));
+app.use(bodyParser.urlencoded({ limit: maxBodySize, extended: true }));
 
 
 
@@ -58,6 +70,31 @@ app.get("/", (req: Request, res: Response) => {
         env: process.env.NODE_ENV || 'development'
     };
     res.json(processInfo);
+});
+
+// Health check endpoint for Docker
+app.get("/health", (req: Request, res: Response) => {
+    try {
+        // Check if Supabase is initialized
+        const supabaseHealthy = SupabaseWrapper.get() !== null;
+
+        const healthStatus = {
+            status: "healthy",
+            timestamp: new Date().toISOString(),
+            uptime: process.uptime(),
+            memory: process.memoryUsage(),
+            supabase: supabaseHealthy ? "connected" : "disconnected",
+            env: process.env.NODE_ENV || 'development'
+        };
+
+        res.status(200).json(healthStatus);
+    } catch (error) {
+        res.status(503).json({
+            status: "unhealthy",
+            timestamp: new Date().toISOString(),
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
 });
 
 
@@ -108,8 +145,16 @@ controllers.forEach(controller => {
 
 app.use(router);
 
-app.listen(process.env.PORT ?? 5875, () => {
-    console.log(`Server running on port ${process.env.PORT ?? 5875}`);
+const port = parseInt(process.env.PORT || '3325');
+const host = process.env.HOST || '0.0.0.0';
+
+app.listen(port, host, () => {
+    console.log(`🚀 Server running on ${host}:${port}`);
+    console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`🌐 CORS Origin: ${corsOrigin}`);
+    console.log(`📁 Max file size: ${Math.round(maxFileSize / 1024 / 1024)}MB`);
+    console.log(`📄 Max body size: ${maxBodySize}`);
+    console.log(`🏥 Health check: http://${host}:${port}/health`);
 });
 
 

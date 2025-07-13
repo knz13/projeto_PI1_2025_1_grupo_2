@@ -1,0 +1,23 @@
+# Python dependencies for start_and_monitor.py
+# Note: This backend is primarily Node.js/TypeScript (see package.json)
+# This requirements.txt is specifically for the Python monitoring script
+
+# Environment variable loading (.env file support)
+python-dotenv>=1.0.0
+
+# System and process monitoring (memory usage, process management)
+psutil>=5.9.0
+
+# Installation command:
+# pip install -r requirements.txt
+
+# Note: The following are part of Python standard library and don't need to be installed:
+# - logging.handlers.RotatingFileHandler (rotating log files)
+# - subprocess (process management)
+# - threading (thread management)
+# - gc (garbage collection)
+# - signal (signal handling)
+# - time (time operations)
+# - os (operating system interface)
+# - pathlib (path operations)
+# - argparse (command line argument parsing) 
