@@ -6,7 +6,8 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: projeto-backend
-    # No ports exposed - nginx handles external traffic
+    ports:
+      - "5712:5712"    # Expose backend port for direct access and debugging
     environment:
       - NODE_ENV=production
       - PORT=5712
@@ -49,7 +50,8 @@ services:
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
     logging:
       driver: "json-file"
