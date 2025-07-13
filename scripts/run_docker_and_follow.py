@@ -62,7 +62,7 @@ class DockerManager:
             # Store lines to display
             output_lines = []
             display_buffer = []
-            max_lines = 3
+            max_lines = 20
             last_update_time = time.time()
             display_lines_count = 0
             
