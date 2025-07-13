@@ -70,16 +70,15 @@ RUN npm run build-docker || echo "Build failed, will retry later"
 ENV GIT_DISCOVERY_ACROSS_FILESYSTEM=1
 
 # Expose ports for HTTPS
-EXPOSE 4852
-EXPOSE 4652
+EXPOSE 5712
 
 # Set environment variables
 ENV NODE_ENV=production
-ENV PORT=4852
+ENV PORT=5712
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:4852/health || exit 1
+    CMD curl -f http://localhost:5712/health || exit 1
 
 # Switch back to /app directory for entrypoint script
 WORKDIR /app
