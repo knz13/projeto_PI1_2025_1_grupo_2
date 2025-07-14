@@ -63,15 +63,33 @@ services:
     command: >
       sh -c "
         echo 'Checking SSL certificate files...' &&
-        ls -la /etc/letsencrypt/live/no-fluxo-api.shop/ &&
-        echo 'Testing certificate file readability...' &&
-        cat /etc/letsencrypt/live/no-fluxo-api.shop/fullchain.pem | head -5 &&
-        echo 'Testing private key file readability...' &&
-        cat /etc/letsencrypt/live/no-fluxo-api.shop/privkey.pem | head -5 &&
-        echo 'Testing nginx configuration...' &&
-        nginx -t &&
-        echo 'SSL certificates validated, starting nginx...' &&
-        nginx -g 'daemon off;'
+        if [ -f /etc/letsencrypt/live/no-fluxo-api.shop/fullchain.pem ] && [ -f /etc/letsencrypt/live/no-fluxo-api.shop/privkey.pem ]; then
+          echo 'SSL certificates found, testing readability...' &&
+          cat /etc/letsencrypt/live/no-fluxo-api.shop/fullchain.pem | head -5 &&
+          cat /etc/letsencrypt/live/no-fluxo-api.shop/privkey.pem | head -5 &&
+          echo 'Testing nginx configuration with SSL...' &&
+          nginx -t &&
+          echo 'SSL certificates validated, starting nginx with HTTPS termination...' &&
+          nginx -g 'daemon off;'
+        else
+          echo 'SSL certificates not found, creating HTTP-only configuration...' &&
+          sed -i 's/listen 5712 ssl http2;/listen 5712;/' /etc/nginx/nginx.conf &&
+          sed -i '/ssl_certificate/d' /etc/nginx/nginx.conf &&
+          sed -i '/ssl_certificate_key/d' /etc/nginx/nginx.conf &&
+          sed -i '/ssl_protocols/d' /etc/nginx/nginx.conf &&
+          sed -i '/ssl_ciphers/d' /etc/nginx/nginx.conf &&
+          sed -i '/ssl_prefer_server_ciphers/d' /etc/nginx/nginx.conf &&
+          sed -i '/ssl_session_cache/d' /etc/nginx/nginx.conf &&
+          sed -i '/ssl_session_timeout/d' /etc/nginx/nginx.conf &&
+          sed -i '/add_header Strict-Transport-Security/d' /etc/nginx/nginx.conf &&
+          sed -i '/add_header X-Frame-Options/d' /etc/nginx/nginx.conf &&
+          sed -i '/add_header X-Content-Type-Options/d' /etc/nginx/nginx.conf &&
+          sed -i '/add_header X-XSS-Protection/d' /etc/nginx/nginx.conf &&
+          echo 'Testing nginx configuration without SSL...' &&
+          nginx -t &&
+          echo 'Starting nginx with HTTP only (no SSL termination)...' &&
+          nginx -g 'daemon off;'
+        fi
       "
 
 networks:
