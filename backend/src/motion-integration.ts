@@ -268,14 +268,24 @@ export function detectZeroVelocity(accel: Vector3, gyro: Vector3, velocity: Vect
     const gyroMag = VectorUtils.magnitude(gyro);
     const velMag = VectorUtils.magnitude(velocity);
 
-    // Thresholds for stationary detection
-    const accelThreshold = 0.5; // m/s² deviation from gravity
-    const gyroThreshold = 0.1; // rad/s
-    const velocityThreshold = 0.1; // m/s
+    // More aggressive thresholds for better ZUPT detection
+    const accelThreshold = 1.5; // m/s² deviation from gravity (more lenient)
+    const gyroThreshold = 0.2; // rad/s (more lenient)
+    const velocityThreshold = 5.0; // m/s (much more lenient - if device seems still, trust it)
 
     const gravityMag = 9.81;
     const accelDeviation = Math.abs(accelMag - gravityMag);
 
+    // Primary check: acceleration close to gravity (device at rest)
+    const isAccelStationary = accelDeviation < accelThreshold;
+    const isGyroStationary = gyroMag < gyroThreshold;
+
+    // If acceleration and gyro suggest stationary, ignore velocity (it might be drifted)
+    if (isAccelStationary && isGyroStationary) {
+        return true;
+    }
+
+    // Secondary check: all parameters within thresholds
     return accelDeviation < accelThreshold &&
         gyroMag < gyroThreshold &&
         velMag < velocityThreshold;
@@ -354,13 +364,20 @@ export function integrateMotion(imuData: IMUData, state: MotionState): {
     }
 
     // Auto-detect IMU scale on first few samples if not already detected
-    if (!state.scaleDetected && state.accelHistory.length < 5) {
+    if (!state.scaleDetected && state.accelHistory.length < 10) {
         const rawMag = VectorUtils.magnitude(imuData.accel);
         const detected = detectAccelRange(rawMag);
         state.accelScale = 9.81 / detected.scale;
         state.scaleDetected = true;
         console.log(`[Motion] Auto-detected accelerometer: ${detected.range} (${detected.scale} LSB/g)`);
+        console.log(`[Motion] Scale factor: ${state.accelScale.toFixed(6)} m/s²/LSB`);
         console.log(`[Motion] Raw magnitude: ${rawMag.toFixed(0)} LSB → ${(rawMag * state.accelScale).toFixed(2)} m/s²`);
+
+        // Verify conversion is reasonable (should be near gravity when stationary)
+        const convertedMag = rawMag * state.accelScale;
+        if (Math.abs(convertedMag - 9.81) > 2.0) {
+            console.warn(`[Motion] WARNING: Converted magnitude ${convertedMag.toFixed(2)} m/s² seems incorrect (expected ~9.81 m/s²)`);
+        }
     }
 
     // Convert raw IMU data to m/s² and rad/s using detected/configured scales
@@ -381,8 +398,16 @@ export function integrateMotion(imuData: IMUData, state: MotionState): {
     if (shouldLogDebug) {
         const rawMag = VectorUtils.magnitude(imuData.accel);
         const convertedMag = VectorUtils.magnitude(rawAccel);
+        const velMag = VectorUtils.magnitude(state.velocity);
         console.log(`[Motion] Raw accel magnitude: ${rawMag.toFixed(0)} LSB, Converted: ${convertedMag.toFixed(2)} m/s²`);
+        console.log(`[Motion] Current velocity magnitude: ${velMag.toFixed(2)} m/s`);
         console.log(`[Motion] Current scales: Accel=${(9.81 / state.accelScale).toFixed(0)} LSB/g, Gyro=${(180 * state.gyroScale / Math.PI).toFixed(1)} LSB/°/s`);
+
+        // Emergency velocity reset if values are unreasonable (device appears stationary but velocity is high)
+        if (velMag > 30 && Math.abs(convertedMag - 9.81) < 2.0) {
+            console.warn(`[Motion] EMERGENCY: Resetting velocity from ${velMag.toFixed(2)} m/s (device appears stationary)`);
+            state.velocity = { x: 0, y: 0, z: 0 };
+        }
     }
 
     // Update acceleration history for outlier detection
@@ -428,11 +453,20 @@ export function integrateMotion(imuData: IMUData, state: MotionState): {
         state.zuptCounter++;
         if (state.zuptCounter >= state.zuptRequiredFrames) {
             // Apply ZUPT - reset velocity and clamp small movements
+            const oldVelMag = VectorUtils.magnitude(state.velocity);
             state.velocity = { x: 0, y: 0, z: 0 };
+            if (oldVelMag > 0.1) {
+                console.log(`[Motion] ZUPT applied - velocity reset from ${oldVelMag.toFixed(2)} m/s to 0`);
+            }
             state.zuptCounter = 0;
         }
     } else {
         state.zuptCounter = 0;
+    }
+
+    // Debug ZUPT status
+    if (shouldLogDebug) {
+        console.log(`[Motion] ZUPT status: ${isStationary ? 'stationary' : 'moving'}, counter: ${state.zuptCounter}/${state.zuptRequiredFrames}`);
     }
 
     // Integrate acceleration to velocity if not in ZUPT mode
@@ -447,8 +481,15 @@ export function integrateMotion(imuData: IMUData, state: MotionState): {
         if (Math.abs(state.velocity.y) < deadband) state.velocity.y = 0;
         if (Math.abs(state.velocity.z) < deadband) state.velocity.z = 0;
 
-        // Clamp velocity to reasonable limits
-        state.velocity = VectorUtils.clamp(state.velocity, -50, 50); // Max 50 m/s
+        // Clamp velocity to reasonable limits (more conservative for debugging)
+        const maxVelocity = 100; // Increased limit but still reasonable for rocket
+        state.velocity = VectorUtils.clamp(state.velocity, -maxVelocity, maxVelocity);
+
+        // Debug: Log when clamping occurs
+        const velMag = VectorUtils.magnitude(state.velocity);
+        if (velMag >= maxVelocity * 0.9) { // Log when approaching limit
+            console.log(`[Motion] Velocity approaching limit: ${velMag.toFixed(2)} m/s (limit: ${maxVelocity})`);
+        }
     }
 
     // Integrate velocity to position
