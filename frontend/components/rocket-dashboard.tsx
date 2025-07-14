@@ -14,7 +14,7 @@ import {
   ConnectionType,
   ConnectedDevice,
   LaunchCommand
-} from "../lib/websocket-types"
+} from "@/lib/websocket-types"
 
 export default function RocketDashboard() {
   const [activeTab, setActiveTab] = useState("rocket")
