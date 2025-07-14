@@ -1,5 +1,7 @@
 # Use a imagem oficial do Node.js
-FROM node:18-alpine
+# FROM node:18-alpine
+# Atualização: para mitigação de vulnerabilidades, usando uma versão mais recente (Sugerido pelo Docker Scout)
+FROM node:24-alpine3.21
 
 # Instalar dependências do sistema necessárias para algumas dependências npm
 # Descomente se encontrar erros de compilação de dependências nativas:

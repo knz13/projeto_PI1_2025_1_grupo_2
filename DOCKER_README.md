@@ -53,13 +53,17 @@ docker-compose ps
 ### 3. Verificação
 
 Após o deployment, sua aplicação estará disponível em:
-- **HTTPS na porta 4665**: `https://seu-dominio.com:4665`
-- **HTTP será redirecionado automaticamente para HTTPS**
+- **HTTP na porta 8080**: `http://localhost:8080` (redireciona para HTTPS)
+- **HTTPS na porta 4665**: `https://localhost:4665`
+- **Backend direto**: `http://localhost:5875` (apenas para desenvolvimento)
 
 ## 🔧 Configurações
 
 ### Porta 4665
-A aplicação é exposta na porta 4665 externamente, mas roda internamente na porta 5875 do container do backend.
+A aplicação é exposta na porta 4665 externamente para HTTPS, e na porta 8080 para HTTP (que redireciona para HTTPS). Internamente, o backend roda na porta 5875 do container.
+
+### Conflito com Porta 80
+Para evitar conflitos com IIS ou outros serviços web do Windows que usam a porta 80, o HTTP foi configurado na porta 8080.
 
 ### SSL Automático
 O Let's Encrypt configurará automaticamente certificados SSL para seu domínio. Certifique-se de:
