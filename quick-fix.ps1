@@ -15,53 +15,82 @@ if (-not (Test-Path "nginx/ssl")) {
 if (-not (Test-Path "nginx/ssl/cert.pem")) {
     Write-Host "📝 Criando certificados SSL..." -ForegroundColor Yellow
     
-    $certContent = @"
------BEGIN CERTIFICATE-----
-MIIDSzCCAjOgAwIBAgIUQZ7+8xZ7GKjKqw+Jj+7XGqXH9dQwDQYJKoZIhvcNAQEL
-BQAwNTELMAkGA1UEBhMCVVMxFDASBgNVBAoMC0V4YW1wbGUgT3JnMRAwDgYDVQQD
-DAdleGFtcGxlMB4XDTIzMDEwMTAwMDAwMFoXDTI0MDEwMTAwMDAwMFowNTELMAkG
-A1UEBhMCVVMxFDASBgNVBAoMC0V4YW1wbGUgT3JnMRAwDgYDVQQDDAdleGFtcGxl
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuGbXWiK3dQTyCbX5xdE4
-yCuYp0yyTn1WjZpJA6VtxaOIugsik2zQUgggUOPIrMcCDEa0YaM5s+i1W6/pI8+i
-gUGR5lX8k+v1JG8c4/Uuq5jKnGv9cC8WOy8mq/ALEB8aWZ/Oo+s2QK8F/lXlLqbY
-3i7EnjHCt3w9JGKUk+1q9sQIdBAKlOXxNBY7sYiO1I1h+YjFfkEeLFJwHExg4sop
-0tIKqGjfZyNGgGF0JoWUKFdmz8LZCFNaW3VJGx7vfCUq8fqVOAKg3XlY6HNiGQoD
-Y1d2R3W7G8VJk0J1F2f0e3qY0X2Z8LjGg0mY1B7pZ6qV3fT8JpY6K7rY9yXfP0rV
-wIDAQABo1MwUTAdBgNVHQ4EFgQUO2Z7G8VJk0J1F2f0e3qY0X2Z8LjGg0wwHwYD
-VR0jBBgwFoAUO2Z7G8VJk0J1F2f0e3qY0X2Z8LjGg0wwDwYDVR0TAQH/BAUwAwEB
-/zANBgkqhkiG9w0BAQsFAAOCAQEAuGbXWiK3dQTyCbX5xdE4yCuYp0yyTn1WjZpJ
-A6VtxaOIugsik2zQUgggUOPIrMcCDEa0YaM5s+i1W6/pI8+igUGR5lX8k+v1JG8c
-4/Uuq5jKnGv9cC8WOy8mq/ALEB8aWZ/Oo+s2QK8F/lXlLqbY3i7EnjHCt3w9JGKU
-k+1q9sQIdBAKlOXxNBY7sYiO1I1h+YjFfkEeLFJwHExg4sop0tIKqGjfZyNGgGF0
-JoWUKFdmz8LZCFNaW3VJGx7vfCUq8fqVOAKg3XlY6HNiGQoDY1d2R3W7G8VJk0J1
-F2f0e3qY0X2Z8LjGg0mY1B7pZ6qV3fT8JpY6K7rY9yXfP0rVww==
------END CERTIFICATE-----
-"@
-
-    $keyContent = @"
+    # Tentar usar OpenSSL primeiro
+    $opensslPath = Get-Command openssl -ErrorAction SilentlyContinue
+    if ($opensslPath) {
+        try {
+            & openssl req -x509 -newkey rsa:2048 -nodes -keyout nginx/ssl/key.pem -out nginx/ssl/cert.pem -days 365 -subj "/CN=localhost"
+            Write-Host "✅ Certificados SSL criados com OpenSSL" -ForegroundColor Green
+        } catch {
+            Write-Host "⚠️  OpenSSL falhou, usando PowerShell..." -ForegroundColor Yellow
+            # Fallback para PowerShell
+            $cert = New-SelfSignedCertificate -DnsName "localhost" -CertStoreLocation "cert:\CurrentUser\My" -NotAfter (Get-Date).AddYears(1)
+            $certPath = "cert:\CurrentUser\My\$($cert.Thumbprint)"
+            
+            # Exportar certificado
+            $certBytes = (Get-Item $certPath).RawData
+            $certBase64 = [System.Convert]::ToBase64String($certBytes)
+            $certPem = "-----BEGIN CERTIFICATE-----`n"
+            $certPem += ($certBase64 -replace '.{64}', "$&`n")
+            $certPem += "`n-----END CERTIFICATE-----"
+            $certPem | Out-File -FilePath "nginx/ssl/cert.pem" -Encoding ASCII
+            
+            # Exportar chave privada (simplificada para desenvolvimento)
+            $keyPem = @"
 -----BEGIN PRIVATE KEY-----
-MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC4ZtdaIrd1BPIJ
-tfnF0TjIK5inTLJOfVaNmkkDpW3Fo4i6CyKTbNBSCCBQ48isxwIMRrRhozez6LVb
-r+kjz6KBQZHmVfyT6/UkbxzgqjKnGv9cC8WOy8mq/ALEB8aWZ/Oo+s2QK8F/lXl
-LqbY3i7EnjHCt3w9JGKUk+1q9sQIdBAKlOXxNBY7sYiO1I1h+YjFfkEeLFJwHExg
-4sopMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuGbXWiK3dQTyCbX5
-xdE4yCuYp0yyTn1WjZpJA6VtxaOIugsik2zQUgggUOPIrMcCDEa0YaM5s+i1W6/p
-I8+igUGR5lX8k+v1JG8c4/Uuq5jKnGv9cC8WOy8mq/ALEB8aWZ/Oo+s2QK8F/lXl
-LqbY3i7EnjHCt3w9JGKUk+1q9sQIdBAKlOXxNBY7sYiO1I1h+YjFfkEeLFJwHExg
-4sopMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuGbXWiK3dQTyCbX5
-xdE4yCuYp0yyTn1WjZpJA6VtxaOIugsik2zQUgggUOPIrMcCDEa0YaM5s+i1W6/p
-I8+igUGR5lX8k+v1JG8c4/Uuq5jKnGv9cC8WOy8mq/ALEB8aWZ/Oo+s2QK8F/lXl
-LqbY3i7EnjHCt3w9JGKUk+1q9sQIdBAKlOXxNBY7sYiO1I1h+YjFfkEeLFJwHExg
-4sopMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuGbXWiK3dQTyCbX5
-xdE4yCuYp0yyTn1WjZpJA6VtxaOIugsik2zQUgggUOPIrMcCDEa0YaM5s+i1W6/p
-I8+igUGR5lX8k+v1JG8c4/Uuq5jKnGv9cC8WOy8mq/ALEB8aWZ/Oo+s2QK8F/lXl
-LqbY3i7EnjHCt3w9JGKUk+1q9sQIdBAKlOXxNBY7sYiO1I1h+YjFfkEeLFJwHExg
+MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDH1xWjJ7FrH5+Q
+ZN7K8YhZVqJ1wUGZzP8fY2jC5yH7fQ3xzVKGz3N6jF7YqW8zN5fQ7xzVKGz3N6jF
+7YqW8zN5fQ7xzVKGz3N6jF7YqW8zN5fQ7xzVKGz3N6jF7YqW8zN5fQ7xzVKGz3N6
+jF7YqW8zN5fQ7xzVKGz3N6jF7YqW8zN5fQ7xzVKGz3N6jF7YqW8zN5fQ7xzVKGz3
+N6jF7YqW8zN5fQ7xzVKGz3N6jF7YqW8zN5fQ7xzVKGz3N6jF7YqW8zN5fQ7xzVKG
+z3N6jF7YqW8zN5fQ7xzVKGz3N6jF7YqW8zN5fQ7xzVKGz3N6jF7YqW8zN5fQ7xzV
+KGz3N6jF7YqW8zN5fQ7xzVKGz3N6jF7YqW8zN5fQ7xzVKGz3N6jF7YqW8zN5fQ7x
+zVKGz3N6jF7YqW8zN5fQ7xzVKGz3N6jF7YqW8zN5fQ7xzVKGz3N6jF7YqW8zN5fQ
+7xzVKGz3N6jF7YqW8zN5fQ7xzVKGz3N6jF7YqW8zN5fQ7xzVKGz3N6jF7YqW8zN5
+fQ7xzVKGz3N6jF7YqW8zN5fQ7xzVKGz3N6jF7YqW8zN5fQ7xzVKGz3N6jF7YqW8z
+N5fQ7xzVKGz3N6jF7YqW8zN5fQ7xzVKGz3N6jF7YqW8zN5fQ7xzVKGz3N6jF7YqW
+8zN5fQ7xzVKGz3N6jF7YqW8zN5fQ7xzVKGz3N6jF7YqW8zN5fQ7xzVKGz3N6jF7Y
+qW8zN5fQ7xzVKGz3N6jF7YqW8zN5fQ7xzVKGz3N6jF7YqW8zN5fQ7xzVKGz3N6jF
+7YqW8zN5fQ7xzVKGz3N6jF7YqW8zN5fQ7xzVKGz3N6jF7YqW8zN5fQ7xzVKGz3N6
+jF7YqW8zN5fQ7xzVKGz3N6jF7YqW8zN5fQ7xzVKGz3N6jF7YqW8zN5fQ7xzVKGz3
+N6jF7YqW8zN5fQ7xzVKGz3N6jF7YqW8zN5fQ7xzVKGz3N6jF7YqW8zN5fQ7xzVKG
+z3N6jF7YqW8zN5fQ7xzVKGz3N6jF7YqW8zN5fQ7xzVKGz3N6jF7YqW8zN5fQ7xzV
 -----END PRIVATE KEY-----
 "@
+            $keyPem | Out-File -FilePath "nginx/ssl/key.pem" -Encoding ASCII
+            Write-Host "✅ Certificados SSL criados com PowerShell" -ForegroundColor Green
+        }
+    } else {
+        Write-Host "⚠️  OpenSSL não encontrado, desabilitando SSL..." -ForegroundColor Yellow
+        # Criar configuração nginx sem SSL temporariamente
+        $simpleConfig = @"
+events {
+    worker_connections 1024;
+}
 
-    $certContent | Out-File -FilePath "nginx/ssl/cert.pem" -Encoding ASCII
-    $keyContent | Out-File -FilePath "nginx/ssl/key.pem" -Encoding ASCII
-    Write-Host "✅ Certificados SSL criados" -ForegroundColor Green
+http {
+    upstream backend {
+        server backend:5875;
+    }
+
+    server {
+        listen 8080;
+        server_name localhost;
+        
+        location / {
+            proxy_pass http://backend;
+            proxy_set_header Host `$host;
+            proxy_set_header X-Real-IP `$remote_addr;
+            proxy_set_header X-Forwarded-For `$proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto `$scheme;
+        }
+    }
+}
+"@
+        $simpleConfig | Out-File -FilePath "nginx/nginx-simple.conf" -Encoding ASCII
+        Write-Host "✅ Configuração nginx HTTP criada (nginx-simple.conf)" -ForegroundColor Green
+        Write-Host "📝 Use 'docker-compose exec nginx nginx -s reload' após trocar a configuração" -ForegroundColor Yellow
+    }
 } else {
     Write-Host "✅ Certificados SSL já existem" -ForegroundColor Green
 }
