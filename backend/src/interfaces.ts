@@ -7,6 +7,87 @@ export enum RequestType {
     PUT = "PUT",
 }
 
+// WebSocket Message Types
+export enum WSMessageType {
+    // Connection types
+    connection_type = "connection_type",
+
+    // Data messages (existing)
+    dados_geral = "dados_geral",
+    dados_aceleracao = "dados_aceleracao",
+    dados_altura = "dados_altura",
+
+    // ESP32 specific messages
+    esp_status = "esp_status",
+    launch_command = "launch_command",
+    telemetry_data = "telemetry_data",
+
+    // Website specific messages
+    get_connected_devices = "get_connected_devices",
+    send_command_to_device = "send_command_to_device",
+    device_list_response = "device_list_response",
+    command_response = "command_response",
+
+    // System messages
+    welcome = "welcome",
+    error = "error",
+    acknowledgment = "acknowledgment"
+}
+
+export enum ConnectionType {
+    acionamento = "acionamento",  // ESP32 for launch control
+    telemetria = "telemetria",   // ESP32 for flight monitoring
+    website = "website"          // Website connections
+}
+
+// WebSocket Message Interfaces
+export interface WSMessage {
+    type: WSMessageType;
+    data: any;
+    timestamp?: string;
+    clientId?: string;
+}
+
+export interface ConnectionTypeMessage {
+    connection_type: ConnectionType;
+    device_id?: string;
+    capabilities?: string[];
+}
+
+export interface ConnectedDevice {
+    clientId: string;
+    connectionType: ConnectionType;
+    deviceId?: string;
+    capabilities?: string[];
+    lastSeen: Date;
+    status: 'connected' | 'disconnected';
+}
+
+export interface LaunchCommand {
+    action: 'prepare' | 'launch' | 'abort' | 'reset';
+    parameters?: {
+        angle?: number;
+        pressure?: number;
+        weight?: number;
+    };
+}
+
+export interface TelemetryData {
+    timestamp: string;
+    altitude: number[];
+    acceleration: number[];
+    velocity: number[];
+    position?: number[];
+    status?: string;
+}
+
+export interface DeviceCommand {
+    targetDeviceId?: string;
+    targetConnectionType?: ConnectionType;
+    command: LaunchCommand | any;
+    requestId?: string;
+}
+
 export interface DadosLancamento {
     id_lancamento: number;
     created_at: string; // ou Date, dependendo de como você manipula datas
