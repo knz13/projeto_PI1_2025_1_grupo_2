@@ -14,10 +14,23 @@ export interface Quaternion {
     z: number;
 }
 
+export interface GPSData {
+    lat: number;
+    lon: number;
+    alt: number;
+    sats: number;
+}
+
 export interface IMUData {
     accel: Vector3;
     gyro: Vector3;
     timestamp: number;
+}
+
+export interface SensorData {
+    timestamp: number;
+    imu: IMUData;
+    gps?: GPSData; // GPS can be absent
 }
 
 export interface MotionState {
@@ -45,6 +58,19 @@ export interface MotionState {
     accelScale: number;
     gyroScale: number;
     scaleDetected: boolean;
+
+    // GPS fusion state
+    gpsPosition: Vector3 | null;
+    gpsVelocity: Vector3;
+    lastGPSPosition: Vector3 | null;
+    lastGPSTimestamp: number;
+    gpsAvailable: boolean;
+    gpsFixQuality: number; // Number of satellites
+    referenceLatLon: { lat: number; lon: number } | null; // Reference point for local coordinates
+
+    // Sensor fusion
+    positionConfidence: { imu: number; gps: number }; // 0-1 confidence in each source
+    fusionEnabled: boolean;
 
     // Debug settings
     enableOutlierDetection: boolean;
@@ -319,12 +345,57 @@ export function initializeMotionState(sampleRate: number = 100, enableOutlierDet
         gyroScale: Math.PI / (180 * 131.0), // Default to ±250°/s range
         scaleDetected: false,
 
+        // GPS fusion state
+        gpsPosition: null,
+        gpsVelocity: { x: 0, y: 0, z: 0 },
+        lastGPSPosition: null,
+        lastGPSTimestamp: 0,
+        gpsAvailable: false,
+        gpsFixQuality: 0,
+        referenceLatLon: null,
+
+        // Sensor fusion
+        positionConfidence: { imu: 0.5, gps: 0.5 },
+        fusionEnabled: true,
+
         // Debug settings - disabled by default for now
         enableOutlierDetection
     };
 }
 
-// Main motion integration function with all improvements
+// Enhanced motion integration with GPS fusion
+export function integrateSensorData(sensorData: SensorData, state: MotionState): {
+    position: Vector3;
+    velocity: Vector3;
+    orientation: Quaternion;
+    isStationary: boolean;
+    gpsPosition: Vector3 | null;
+    gpsVelocity: Vector3;
+    gpsAvailable: boolean;
+    fusedPosition: Vector3;
+} {
+    // First process IMU data
+    const imuResult = integrateMotion(sensorData.imu, state);
+
+    // Process GPS data if available
+    let gpsProcessed = false;
+    if (sensorData.gps) {
+        gpsProcessed = processGPSData(sensorData.gps, state, sensorData.timestamp);
+    }
+
+    // Fuse position estimates
+    const fusedPosition = fusePositionEstimates(state);
+
+    return {
+        ...imuResult,
+        gpsPosition: state.gpsPosition,
+        gpsVelocity: state.gpsVelocity,
+        gpsAvailable: state.gpsAvailable,
+        fusedPosition
+    };
+}
+
+// Main motion integration function with all improvements (IMU only)
 export function integrateMotion(imuData: IMUData, state: MotionState): {
     position: Vector3;
     velocity: Vector3;
@@ -536,7 +607,16 @@ export function resetMotionState(state: MotionState): void {
     state.gyroFilter.reset();
     state.madgwick.reset();
 
-    // Keep outlier detection setting as is
+    // Reset GPS state (but keep reference point for consistency)
+    // state.gpsPosition = null; // Keep last GPS position as reference
+    state.gpsVelocity = { x: 0, y: 0, z: 0 };
+    // Keep: lastGPSPosition, lastGPSTimestamp, gpsAvailable, gpsFixQuality, referenceLatLon
+
+    // Reset fusion confidence
+    state.positionConfidence = { imu: 0.5, gps: 0.5 };
+
+    // Keep outlier detection and fusion settings as is
+    console.log('[Motion] Motion state reset (GPS reference preserved)');
 }
 
 // Utility function to enable/disable outlier detection during runtime
@@ -630,4 +710,127 @@ export function convertIMUData(rawAccel: Vector3, rawGyro: Vector3, accelScale?:
         accelScale,
         gyroScale
     };
+}
+
+// GPS utility functions
+export const GPSUtils = {
+    // Convert GPS coordinates to local ENU (East-North-Up) coordinates in meters
+    toLocalCoordinates: (lat: number, lon: number, alt: number, refLat: number, refLon: number): Vector3 => {
+        const R = 6378137; // Earth radius in meters
+
+        const dLat = (lat - refLat) * Math.PI / 180;
+        const dLon = (lon - refLon) * Math.PI / 180;
+
+        const x = dLon * R * Math.cos(refLat * Math.PI / 180); // East
+        const y = dLat * R; // North
+        const z = alt; // Up (altitude)
+
+        return { x, y, z };
+    },
+
+    // Calculate distance between two GPS points in meters
+    distance: (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+        const R = 6378137; // Earth radius in meters
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+    },
+
+    // Assess GPS fix quality based on number of satellites
+    assessFixQuality: (sats: number): number => {
+        if (sats >= 8) return 1.0;      // Excellent
+        if (sats >= 6) return 0.8;      // Good  
+        if (sats >= 4) return 0.6;      // Fair
+        if (sats >= 3) return 0.3;      // Poor
+        return 0.1;                     // Very poor
+    }
+};
+
+// Process GPS data and update state
+export function processGPSData(gpsData: GPSData, state: MotionState, timestamp: number): boolean {
+    // Check GPS quality
+    const gpsQuality = GPSUtils.assessFixQuality(gpsData.sats);
+    state.gpsFixQuality = gpsData.sats;
+    state.gpsAvailable = gpsData.sats >= 4; // Minimum 4 satellites for reasonable fix
+
+    if (!state.gpsAvailable) {
+        console.log(`[GPS] Poor fix quality: ${gpsData.sats} sats`);
+        return false;
+    }
+
+    // Set reference point on first GPS fix
+    if (!state.referenceLatLon) {
+        state.referenceLatLon = { lat: gpsData.lat, lon: gpsData.lon };
+        console.log(`[GPS] Reference point set: ${gpsData.lat.toFixed(6)}, ${gpsData.lon.toFixed(6)}`);
+    }
+
+    // Convert to local coordinates
+    const localPos = GPSUtils.toLocalCoordinates(
+        gpsData.lat, gpsData.lon, gpsData.alt,
+        state.referenceLatLon.lat, state.referenceLatLon.lon
+    );
+
+    // Calculate GPS velocity if we have previous position
+    if (state.lastGPSPosition && state.lastGPSTimestamp > 0) {
+        const deltaTime = (timestamp - state.lastGPSTimestamp) / 1000.0;
+        if (deltaTime > 0 && deltaTime < 5.0) { // Reasonable time delta
+            state.gpsVelocity = {
+                x: (localPos.x - state.lastGPSPosition.x) / deltaTime,
+                y: (localPos.y - state.lastGPSPosition.y) / deltaTime,
+                z: (localPos.z - state.lastGPSPosition.z) / deltaTime
+            };
+        }
+    }
+
+    // Update GPS state
+    state.gpsPosition = localPos;
+    state.lastGPSPosition = { ...localPos };
+    state.lastGPSTimestamp = timestamp;
+
+    // Update confidence based on GPS quality
+    const gpsConfidence = Math.min(gpsQuality, 0.9); // Cap at 0.9 to always allow some IMU contribution
+    state.positionConfidence.gps = gpsConfidence;
+    state.positionConfidence.imu = 1.0 - gpsConfidence;
+
+    console.log(`[GPS] Position: E=${localPos.x.toFixed(1)}m, N=${localPos.y.toFixed(1)}m, Alt=${localPos.z.toFixed(1)}m (${gpsData.sats} sats)`);
+
+    return true;
+}
+
+// Fuse GPS and IMU position estimates
+export function fusePositionEstimates(state: MotionState): Vector3 {
+    if (!state.fusionEnabled || !state.gpsAvailable || !state.gpsPosition) {
+        return state.position; // Use IMU-only position
+    }
+
+    const imuWeight = state.positionConfidence.imu;
+    const gpsWeight = state.positionConfidence.gps;
+
+    // Weighted average of GPS and IMU positions
+    const fusedPosition: Vector3 = {
+        x: imuWeight * state.position.x + gpsWeight * state.gpsPosition.x,
+        y: imuWeight * state.position.y + gpsWeight * state.gpsPosition.y,
+        z: imuWeight * state.position.z + gpsWeight * state.gpsPosition.z
+    };
+
+    // Check for large discrepancies between GPS and IMU
+    const positionError = VectorUtils.magnitude(VectorUtils.subtract(state.position, state.gpsPosition));
+    if (positionError > 50.0) { // 50m threshold
+        console.warn(`[Fusion] Large position discrepancy: ${positionError.toFixed(1)}m between GPS and IMU`);
+
+        // If GPS is confident, reset IMU position towards GPS
+        if (state.positionConfidence.gps > 0.7) {
+            console.log(`[Fusion] Resetting IMU position towards GPS (${state.gpsFixQuality} sats)`);
+            state.position = { ...state.gpsPosition };
+            state.velocity = { ...state.gpsVelocity }; // Also reset velocity
+        }
+    }
+
+    return fusedPosition;
 } 

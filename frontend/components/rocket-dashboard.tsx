@@ -255,7 +255,17 @@ export default function RocketDashboard() {
             {telemetryData && (
               <Card className="mt-4 border-yellow-100">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm text-yellow-700">📊 Telemetria em Tempo Real</CardTitle>
+                  <CardTitle className="text-sm text-yellow-700 flex items-center gap-2">
+                    📊 Telemetria em Tempo Real
+                    <Badge variant="outline" className="text-xs bg-green-50 border-green-200 text-green-700">
+                      GPS + IMU
+                    </Badge>
+                    {telemetryData.gpsAvailable && (
+                      <Badge variant="outline" className="text-xs bg-blue-50 border-blue-200 text-blue-700">
+                        GPS Fix ✓
+                      </Badge>
+                    )}
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="py-2">
                   <div className="grid grid-cols-2 gap-2 text-xs">
@@ -372,12 +382,75 @@ export default function RocketDashboard() {
                       </span>
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-gray-500">Orientação (W):</span>
-                      <span className="font-medium">
-                        {telemetryData.orientation?.w ? telemetryData.orientation.w.toFixed(3) : 'N/A'}
+                      <span className="text-gray-500">GPS Status:</span>
+                      <span className={`font-medium ${telemetryData.gpsAvailable ? 'text-green-600' : 'text-red-600'}`}>
+                        {telemetryData.gpsAvailable ?
+                          `✓ ${telemetryData.fusion?.gpsQuality || 0} sats` :
+                          '✗ Sem fix'}
                       </span>
                     </div>
                   </div>
+
+                  {/* GPS Data Section */}
+                  {telemetryData.gps && (
+                    <div className="mt-3 pt-2 border-t border-yellow-200">
+                      <div className="text-xs text-gray-600 mb-2">
+                        <span className="font-medium">🛰️ Dados GPS:</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="flex flex-col">
+                          <span className="text-gray-500">Latitude:</span>
+                          <span className="font-medium">{telemetryData.gps.lat.toFixed(6)}°</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-gray-500">Longitude:</span>
+                          <span className="font-medium">{telemetryData.gps.lon.toFixed(6)}°</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-gray-500">Altitude GPS:</span>
+                          <span className="font-medium">{telemetryData.gps.alt.toFixed(1)} m</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-gray-500">Satélites:</span>
+                          <span className="font-medium">{telemetryData.gps.sats}</span>
+                        </div>
+                        {telemetryData.gpsPosition && (
+                          <>
+                            <div className="flex flex-col">
+                              <span className="text-gray-500">GPS Local X:</span>
+                              <span className="font-medium">{telemetryData.gpsPosition.x.toFixed(2)} m</span>
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-gray-500">GPS Local Y:</span>
+                              <span className="font-medium">{telemetryData.gpsPosition.y.toFixed(2)} m</span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Fusion Information */}
+                  {telemetryData.fusion && (
+                    <div className="mt-3 pt-2 border-t border-yellow-200">
+                      <div className="text-xs text-gray-600 mb-2">
+                        <span className="font-medium">🔗 Fusão de Sensores:</span>
+                        <span className={`ml-2 ${telemetryData.fusion.enabled ? 'text-green-600' : 'text-red-600'}`}>
+                          {telemetryData.fusion.enabled ? 'Ativa' : 'Inativa'}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="flex flex-col">
+                          <span className="text-gray-500">Confiança IMU:</span>
+                          <span className="font-medium">{(telemetryData.fusion.confidence.imu * 100).toFixed(0)}%</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-gray-500">Confiança GPS:</span>
+                          <span className="font-medium">{(telemetryData.fusion.confidence.gps * 100).toFixed(0)}%</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Quaternion details in a separate section */}
                   {telemetryData.orientation && (

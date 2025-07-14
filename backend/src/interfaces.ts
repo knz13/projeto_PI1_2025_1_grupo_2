@@ -86,6 +86,12 @@ export interface TelemetryData {
             z: number;
         };
     };
+    gps?: {  // GPS data is optional
+        lat: number;
+        lon: number;
+        alt: number;
+        sats: number;
+    };
     velocity?: {  // Calculated velocity
         x: number;
         y: number;

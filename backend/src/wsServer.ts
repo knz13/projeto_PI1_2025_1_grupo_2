@@ -14,10 +14,13 @@ import {
 import {
     MotionState,
     IMUData,
+    SensorData,
+    GPSData,
     Vector3,
     Quaternion,
     initializeMotionState,
     integrateMotion as integrateAdvancedMotion,
+    integrateSensorData,
     resetMotionState as resetAdvancedMotionState
 } from './motion-integration';
 
@@ -282,27 +285,39 @@ function handleTelemetryData(data: TelemetryData, clientId: string, enableLoggin
     // Get or initialize motion state
     const motionState = getOrInitializeMotionState(clientId);
 
-    // Process IMU data if available
+    // Process sensor data (IMU + GPS) if available
     let velocity: Vector3 = { x: 0, y: 0, z: 0 };
     let position: Vector3 = { x: 0, y: 0, z: 0 };
     let orientation: Quaternion = { w: 1, x: 0, y: 0, z: 0 };
     let isStationary = false;
     let convertedIMU = null;
+    let gpsPosition: Vector3 | null = null;
+    let gpsVelocity: Vector3 = { x: 0, y: 0, z: 0 };
+    let gpsAvailable = false;
+    let fusedPosition: Vector3 = { x: 0, y: 0, z: 0 };
 
     if (data.imu && data.imu.accel) {
-        // Create IMU data structure for the motion integration
-        const imuData: IMUData = {
-            accel: data.imu.accel,
-            gyro: data.imu.gyro || { x: 0, y: 0, z: 0 }, // Use gyro if available, otherwise zero
-            timestamp: data.timestamp
+        // Create sensor data structure for enhanced integration
+        const sensorData: SensorData = {
+            timestamp: data.timestamp,
+            imu: {
+                accel: data.imu.accel,
+                gyro: data.imu.gyro || { x: 0, y: 0, z: 0 }, // Use gyro if available, otherwise zero
+                timestamp: data.timestamp
+            },
+            gps: data.gps // GPS data is optional
         };
 
-        // Perform advanced motion integration
-        const result = integrateAdvancedMotion(imuData, motionState);
+        // Perform enhanced sensor fusion (GPS + IMU)
+        const result = integrateSensorData(sensorData, motionState);
         velocity = result.velocity;
         position = result.position;
         orientation = result.orientation;
         isStationary = result.isStationary;
+        gpsPosition = result.gpsPosition;
+        gpsVelocity = result.gpsVelocity;
+        gpsAvailable = result.gpsAvailable;
+        fusedPosition = result.fusedPosition;
 
         // Convert raw IMU data for display
         convertedIMU = {
@@ -318,8 +333,13 @@ function handleTelemetryData(data: TelemetryData, clientId: string, enableLoggin
             } : { x: 0, y: 0, z: 0 }
         };
 
-        if (enableLogging && isStationary) {
-            console.log(`[WebSocket] Device ${clientId} detected as stationary`);
+        if (enableLogging) {
+            if (isStationary) {
+                console.log(`[WebSocket] Device ${clientId} detected as stationary`);
+            }
+            if (gpsAvailable) {
+                console.log(`[WebSocket] GPS fusion active for device ${clientId} (${motionState.gpsFixQuality} sats)`);
+            }
         }
     }
 
@@ -333,17 +353,27 @@ function handleTelemetryData(data: TelemetryData, clientId: string, enableLoggin
             // Send original data structure but with converted values
             timestamp: data.timestamp,
             imu: convertedIMU || data.imu, // Use converted data if available
+            gps: data.gps, // Include GPS data if available
             rawIMU: data.imu, // Keep raw data for debugging
             // Enhanced motion data
             velocity,
-            position,
+            position: fusedPosition, // Use fused position instead of IMU-only
+            imuPosition: position, // Keep IMU-only position for comparison
+            gpsPosition,
+            gpsVelocity,
             orientation,
             isStationary,
-            // Scale information for transparency
+            gpsAvailable,
+            // Scale and fusion information
             scales: {
                 accel: motionState.accelScale,
                 gyro: motionState.gyroScale,
                 autoDetected: motionState.scaleDetected
+            },
+            fusion: {
+                enabled: motionState.fusionEnabled,
+                confidence: motionState.positionConfidence,
+                gpsQuality: motionState.gpsFixQuality
             }
         }
     });
