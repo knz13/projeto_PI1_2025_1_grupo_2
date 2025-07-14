@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚀 Server Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .card h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+            display: flex;
+            align-items: center;
+        }
+
+        .card h3::before {
+            content: attr(data-icon);
+            margin-right: 10px;
+            font-size: 1.5rem;
+        }
+
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .status-item:last-child {
+            border-bottom: none;
+        }
+
+        .status-label {
+            font-weight: 600;
+            color: #555;
+        }
+
+        .status-value {
+            color: #333;
+            font-family: 'Courier New', monospace;
+        }
+
+        .status-healthy {
+            color: #28a745;
+            font-weight: bold;
+        }
+
+        .status-warning {
+            color: #ffc107;
+            font-weight: bold;
+        }
+
+        .status-error {
+            color: #dc3545;
+            font-weight: bold;
+        }
+
+        .endpoints-list {
+            list-style: none;
+        }
+
+        .endpoints-list li {
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .endpoints-list li:last-child {
+            border-bottom: none;
+        }
+
+        .method-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            color: white;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        .method-get {
+            background: #28a745;
+        }
+
+        .method-post {
+            background: #007bff;
+        }
+
+        .method-put {
+            background: #ffc107;
+            color: #333;
+        }
+
+        .method-delete {
+            background: #dc3545;
+        }
+
+        .refresh-btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .refresh-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .footer {
+            text-align: center;
+            color: white;
+            margin-top: 30px;
+            opacity: 0.8;
+        }
+
+        @media (max-width: 768px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Server Dashboard</h1>
+            <p>Real-time server monitoring and status</p>
+        </div>
+
+        <div class="dashboard">
+            <div class="card">
+                <h3 data-icon="🏥">Server Health</h3>
+                <div class="status-item">
+                    <span class="status-label">Status:</span>
+                    <span class="status-value status-healthy" id="server-status">{{SERVER_STATUS}}</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Uptime:</span>
+                    <span class="status-value" id="uptime">{{UPTIME}}</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Environment:</span>
+                    <span class="status-value" id="environment">{{ENVIRONMENT}}</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Last Updated:</span>
+                    <span class="status-value" id="timestamp">{{TIMESTAMP}}</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3 data-icon="💾">Memory Usage</h3>
+                <div class="status-item">
+                    <span class="status-label">RSS:</span>
+                    <span class="status-value" id="memory-rss">{{MEMORY_RSS}}</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Heap Used:</span>
+                    <span class="status-value" id="memory-heap-used">{{MEMORY_HEAP_USED}}</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Heap Total:</span>
+                    <span class="status-value" id="memory-heap-total">{{MEMORY_HEAP_TOTAL}}</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">External:</span>
+                    <span class="status-value" id="memory-external">{{MEMORY_EXTERNAL}}</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3 data-icon="🔧">Configuration</h3>
+                <div class="status-item">
+                    <span class="status-label">Host:</span>
+                    <span class="status-value">{{HOST}}</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Port:</span>
+                    <span class="status-value">{{PORT}}</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">CORS Origin:</span>
+                    <span class="status-value">{{CORS_ORIGIN}}</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Max File Size:</span>
+                    <span class="status-value">{{MAX_FILE_SIZE}}</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Supabase:</span>
+                    <span class="status-value" id="supabase-status">{{SUPABASE_STATUS}}</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3 data-icon="🛣️">Available Endpoints</h3>
+                <ul class="endpoints-list">
+                    <li>
+                        <span><span class="method-badge method-get">GET</span> /</span>
+                        <span>Dashboard</span>
+                    </li>
+                    <li>
+                        <span><span class="method-badge method-get">GET</span> /health</span>
+                        <span>Health Check</span>
+                    </li>
+                    <li>
+                        <span><span class="method-badge method-get">GET</span> /dados/*</span>
+                        <span>Data Endpoints</span>
+                    </li>
+                    <li>
+                        <span><span class="method-badge method-post">POST</span> /dados/*</span>
+                        <span>Data Operations</span>
+                    </li>
+                    <li>
+                        <span><span class="method-badge method-put">PUT</span> /dados/*</span>
+                        <span>Data Updates</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <div style="text-align: center;">
+            <button class="refresh-btn" onclick="window.location.reload()">
+                🔄 Refresh Dashboard
+            </button>
+        </div>
+
+        <div class="footer">
+            <p>Server Dashboard • Built with ❤️ for monitoring</p>
+        </div>
+    </div>
+
+    <script>
+        // Auto-refresh every 30 seconds
+        setTimeout(() => {
+            window.location.reload();
+        }, 30000);
+
+        // Add some interactivity
+        document.querySelectorAll('.card').forEach(card => {
+            card.addEventListener('click', () => {
+                card.style.transform = 'scale(0.98)';
+                setTimeout(() => {
+                    card.style.transform = '';
+                }, 150);
+            });
+        });
+    </script>
+</body>
+
+</html>

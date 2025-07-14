@@ -56,20 +56,61 @@ const maxBodySize = process.env.MAX_BODY_SIZE || '500mb';
 app.use(bodyParser.json({ limit: maxBodySize }));
 app.use(bodyParser.urlencoded({ limit: maxBodySize, extended: true }));
 
-
-
-
-
 app.get("/", (req: Request, res: Response) => {
-    const processInfo = {
-        pid: process.pid,
-        platform: process.platform,
-        version: process.version,
-        memory: process.memoryUsage(),
-        uptime: process.uptime(),
-        env: process.env.NODE_ENV || 'development'
-    };
-    res.json(processInfo);
+    try {
+        // Read the HTML template
+        const htmlTemplate = fs.readFileSync('./src/server-dashboard.html', 'utf8');
+
+        // Get server data
+        const memory = process.memoryUsage();
+        const supabaseHealthy = SupabaseWrapper.get() !== null;
+
+        // Format memory values
+        const formatBytes = (bytes: number) => {
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            if (bytes === 0) return '0 Bytes';
+            const i = Math.floor(Math.log(bytes) / Math.log(1024));
+            return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
+        };
+
+        // Format uptime
+        const formatUptime = (seconds: number) => {
+            const days = Math.floor(seconds / 86400);
+            const hours = Math.floor((seconds % 86400) / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = Math.floor(seconds % 60);
+
+            if (days > 0) return `${days}d ${hours}h ${minutes}m ${secs}s`;
+            if (hours > 0) return `${hours}h ${minutes}m ${secs}s`;
+            if (minutes > 0) return `${minutes}m ${secs}s`;
+            return `${secs}s`;
+        };
+
+        // Replace template placeholders with actual data
+        const populatedHtml = htmlTemplate
+            .replace('{{SERVER_STATUS}}', 'Healthy')
+            .replace('{{UPTIME}}', formatUptime(process.uptime()))
+            .replace('{{ENVIRONMENT}}', process.env.NODE_ENV || 'development')
+            .replace('{{TIMESTAMP}}', new Date().toLocaleString())
+            .replace('{{MEMORY_RSS}}', formatBytes(memory.rss))
+            .replace('{{MEMORY_HEAP_USED}}', formatBytes(memory.heapUsed))
+            .replace('{{MEMORY_HEAP_TOTAL}}', formatBytes(memory.heapTotal))
+            .replace('{{MEMORY_EXTERNAL}}', formatBytes(memory.external))
+            .replace('{{HOST}}', host)
+            .replace('{{PORT}}', port.toString())
+            .replace('{{CORS_ORIGIN}}', corsOrigin)
+            .replace('{{MAX_FILE_SIZE}}', `${Math.round(maxFileSize / 1024 / 1024)}MB`)
+            .replace('{{SUPABASE_STATUS}}', supabaseHealthy ? 'Connected' : 'Disconnected');
+
+        res.setHeader('Content-Type', 'text/html');
+        res.status(200).send(populatedHtml);
+    } catch (error) {
+        console.error('Error serving dashboard:', error);
+        res.status(500).json({
+            error: 'Failed to load dashboard',
+            message: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
 });
 
 // Health check endpoint for Docker
