@@ -64,15 +64,14 @@ services:
       sh -c "
         echo 'Checking SSL certificate files...' &&
         ls -la /etc/letsencrypt/live/no-fluxo-api.shop/ &&
-        ls -la /etc/letsencrypt/live/no-fluxo-api.shop/fullchain.pem || echo 'Certificate file not found!' &&
-        ls -la /etc/letsencrypt/live/no-fluxo-api.shop/privkey.pem || echo 'Private key file not found!' &&
-        if [ -f /etc/letsencrypt/live/no-fluxo-api.shop/fullchain.pem ] && [ -f /etc/letsencrypt/live/no-fluxo-api.shop/privkey.pem ]; then
-          echo 'SSL certificates found, starting nginx...' &&
-          nginx -g 'daemon off;'
-        else
-          echo 'SSL certificates not found, please check certificate paths' &&
-          exit 1
-        fi
+        echo 'Testing certificate file readability...' &&
+        cat /etc/letsencrypt/live/no-fluxo-api.shop/fullchain.pem | head -5 &&
+        echo 'Testing private key file readability...' &&
+        cat /etc/letsencrypt/live/no-fluxo-api.shop/privkey.pem | head -5 &&
+        echo 'Testing nginx configuration...' &&
+        nginx -t &&
+        echo 'SSL certificates validated, starting nginx...' &&
+        nginx -g 'daemon off;'
       "
 
 networks:
