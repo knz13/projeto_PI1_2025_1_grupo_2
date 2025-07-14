@@ -65,11 +65,30 @@ export interface LaunchCommand {
 }
 
 export interface TelemetryData {
-    timestamp: string;
-    altitude: number[];
-    acceleration: number[];
-    velocity: number[];
-    position?: number[];
+    timestamp: number; // Changed from string to number
+    imu: {
+        accel: {
+            x: number;
+            y: number;
+            z: number;
+        };
+        gyro: {
+            x: number;
+            y: number;
+            z: number;
+        };
+    };
+    velocity?: {  // Calculated velocity
+        x: number;
+        y: number;
+        z: number;
+    };
+    position?: {  // Calculated position
+        x: number;
+        y: number;
+        z: number;
+    };
+    acceleration?: number[];  // Keep for backwards compatibility
     status?: string;
 }
 

@@ -26,6 +26,7 @@ export default function RocketDashboard() {
   const [wsConnected, setWsConnected] = useState(false)
   const [connectedDevices, setConnectedDevices] = useState<ConnectedDevice[]>([])
   const [telemetryData, setTelemetryData] = useState<any>(null)
+  const [lastTelemetryMessage, setLastTelemetryMessage] = useState<{ timestamp: string, clientId: string, deviceId?: string } | null>(null)
   const [selectedDistance, setSelectedDistance] = useState(10); // NEW: launch type selector
 
 
@@ -80,6 +81,11 @@ export default function RocketDashboard() {
         client.getConnectedDevices();
       } else if (data.type === 'telemetry_update') {
         setTelemetryData(data.data);
+        setLastTelemetryMessage({
+          timestamp: data.timestamp,
+          clientId: data.clientId,
+          deviceId: data.deviceId
+        });
       }
     });
 
@@ -254,28 +260,131 @@ export default function RocketDashboard() {
                 <CardContent className="py-2">
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div className="flex flex-col">
+                      <span className="text-gray-500">Aceleração X:</span>
+                      <span className="font-medium">
+                        {telemetryData.imu?.accel?.x ? telemetryData.imu.accel.x.toFixed(0) : 'N/A'}
+                      </span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-gray-500">Aceleração Y:</span>
+                      <span className="font-medium">
+                        {telemetryData.imu?.accel?.y ? telemetryData.imu.accel.y.toFixed(0) : 'N/A'}
+                      </span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-gray-500">Aceleração Z:</span>
+                      <span className="font-medium">
+                        {telemetryData.imu?.accel?.z ? telemetryData.imu.accel.z.toFixed(0) : 'N/A'}
+                      </span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-gray-500">Magnitude Accel:</span>
+                      <span className="font-medium">
+                        {telemetryData.imu?.accel ?
+                          Math.sqrt(
+                            Math.pow(telemetryData.imu.accel.x, 2) +
+                            Math.pow(telemetryData.imu.accel.y, 2) +
+                            Math.pow(telemetryData.imu.accel.z, 2)
+                          ).toFixed(0) : 'N/A'}
+                      </span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-gray-500">Velocidade X:</span>
+                      <span className="font-medium">
+                        {telemetryData.velocity?.x ? telemetryData.velocity.x.toFixed(2) : 'N/A'} m/s
+                      </span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-gray-500">Velocidade Y:</span>
+                      <span className="font-medium">
+                        {telemetryData.velocity?.y ? telemetryData.velocity.y.toFixed(2) : 'N/A'} m/s
+                      </span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-gray-500">Velocidade Z:</span>
+                      <span className="font-medium">
+                        {telemetryData.velocity?.z ? telemetryData.velocity.z.toFixed(2) : 'N/A'} m/s
+                      </span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-gray-500">Magnitude Vel:</span>
+                      <span className="font-medium">
+                        {telemetryData.velocity ?
+                          Math.sqrt(
+                            Math.pow(telemetryData.velocity.x, 2) +
+                            Math.pow(telemetryData.velocity.y, 2) +
+                            Math.pow(telemetryData.velocity.z, 2)
+                          ).toFixed(2) : 'N/A'} m/s
+                      </span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-gray-500">Posição X:</span>
+                      <span className="font-medium">
+                        {telemetryData.position?.x ? telemetryData.position.x.toFixed(2) : 'N/A'} m
+                      </span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-gray-500">Posição Y:</span>
+                      <span className="font-medium">
+                        {telemetryData.position?.y ? telemetryData.position.y.toFixed(2) : 'N/A'} m
+                      </span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-gray-500">Posição Z:</span>
+                      <span className="font-medium">
+                        {telemetryData.position?.z ? telemetryData.position.z.toFixed(2) : 'N/A'} m
+                      </span>
+                    </div>
+                    <div className="flex flex-col">
                       <span className="text-gray-500">Altitude:</span>
                       <span className="font-medium">
-                        {telemetryData.altitude ? telemetryData.altitude[telemetryData.altitude.length - 1]?.toFixed(2) : 'N/A'} m
+                        {telemetryData.position?.z ? telemetryData.position.z.toFixed(2) : 'N/A'} m
                       </span>
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-gray-500">Velocidade:</span>
+                      <span className="text-gray-500">Gyro X:</span>
                       <span className="font-medium">
-                        {telemetryData.velocity ? telemetryData.velocity[telemetryData.velocity.length - 1]?.toFixed(2) : 'N/A'} m/s
+                        {telemetryData.imu?.gyro?.x ? telemetryData.imu.gyro.x.toFixed(0) : 'N/A'}
                       </span>
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-gray-500">Aceleração:</span>
+                      <span className="text-gray-500">Gyro Y:</span>
                       <span className="font-medium">
-                        {telemetryData.acceleration ? telemetryData.acceleration[telemetryData.acceleration.length - 1]?.toFixed(2) : 'N/A'} m/s²
+                        {telemetryData.imu?.gyro?.y ? telemetryData.imu.gyro.y.toFixed(0) : 'N/A'}
                       </span>
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-gray-500">Status:</span>
-                      <span className="font-medium">{telemetryData.status || 'N/A'}</span>
+                      <span className="text-gray-500">Gyro Z:</span>
+                      <span className="font-medium">
+                        {telemetryData.imu?.gyro?.z ? telemetryData.imu.gyro.z.toFixed(0) : 'N/A'}
+                      </span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-gray-500">Timestamp:</span>
+                      <span className="font-medium">
+                        {telemetryData.timestamp ? `${telemetryData.timestamp}ms` : 'N/A'}
+                      </span>
                     </div>
                   </div>
+                  {lastTelemetryMessage && (
+                    <div className="mt-3 pt-2 border-t border-yellow-200">
+                      <div className="text-xs text-gray-600 mb-2">
+                        <span className="font-medium">Última mensagem recebida:</span>
+                      </div>
+                      <div className="text-xs text-gray-500 space-y-1">
+                        <div>📅 {new Date(lastTelemetryMessage.timestamp).toLocaleString('pt-BR')}</div>
+                        <div>🔗 Cliente: {lastTelemetryMessage.clientId.substring(0, 8)}...</div>
+                        {lastTelemetryMessage.deviceId && (
+                          <div>📱 Dispositivo: {lastTelemetryMessage.deviceId}</div>
+                        )}
+                      </div>
+                      {telemetryData.timestamp && (
+                        <div className="text-xs text-gray-500 mt-1">
+                          ⏱️ Timestamp dos dados: {telemetryData.timestamp}ms
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             )}
