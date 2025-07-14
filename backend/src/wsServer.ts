@@ -302,9 +302,9 @@ function handleSendCommandToDevice(data: DeviceCommand, senderClientId: string, 
 }
 
 function handleTelemetryData(data: TelemetryData, clientId: string, enableLogging: boolean) {
-    if (enableLogging) {
+    /* if (enableLogging) {
         console.log(`[WebSocket] Received telemetry data from client ${clientId}:`, data);
-    }
+    } */
 
     // Update device last seen
     const device = connectedDevices.get(clientId);
