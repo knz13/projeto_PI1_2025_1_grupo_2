@@ -280,19 +280,12 @@ export default function RocketDashboard() {
                     <div className="flex flex-col">
                       <span className="text-gray-500">Magnitude Accel:</span>
                       <span className="font-medium">
-                        {telemetryData.imu?.accel ? (() => {
-                          const magnitude = Math.sqrt(
+                        {telemetryData.imu?.accel ?
+                          Math.sqrt(
                             Math.pow(telemetryData.imu.accel.x, 2) +
                             Math.pow(telemetryData.imu.accel.y, 2) +
                             Math.pow(telemetryData.imu.accel.z, 2)
-                          );
-                          const isNearGravity = Math.abs(magnitude - 9.81) < 1.0;
-                          return (
-                            <span className={isNearGravity ? 'text-green-600' : ''}>
-                              {magnitude.toFixed(2)} m/s² {isNearGravity ? '✓' : ''}
-                            </span>
-                          );
-                        })() : 'N/A'}
+                          ).toFixed(2) : 'N/A'} m/s²
                       </span>
                     </div>
                     <div className="flex flex-col">

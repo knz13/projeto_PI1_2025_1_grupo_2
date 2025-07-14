@@ -287,6 +287,7 @@ function handleTelemetryData(data: TelemetryData, clientId: string, enableLoggin
     let position: Vector3 = { x: 0, y: 0, z: 0 };
     let orientation: Quaternion = { w: 1, x: 0, y: 0, z: 0 };
     let isStationary = false;
+    let convertedIMU = null;
 
     if (data.imu && data.imu.accel) {
         // Create IMU data structure for the motion integration
@@ -303,6 +304,20 @@ function handleTelemetryData(data: TelemetryData, clientId: string, enableLoggin
         orientation = result.orientation;
         isStationary = result.isStationary;
 
+        // Convert raw IMU data for display
+        convertedIMU = {
+            accel: {
+                x: data.imu.accel.x * motionState.accelScale,
+                y: data.imu.accel.y * motionState.accelScale,
+                z: data.imu.accel.z * motionState.accelScale
+            },
+            gyro: data.imu.gyro ? {
+                x: data.imu.gyro.x * motionState.gyroScale,
+                y: data.imu.gyro.y * motionState.gyroScale,
+                z: data.imu.gyro.z * motionState.gyroScale
+            } : { x: 0, y: 0, z: 0 }
+        };
+
         if (enableLogging && isStationary) {
             console.log(`[WebSocket] Device ${clientId} detected as stationary`);
         }
@@ -315,11 +330,21 @@ function handleTelemetryData(data: TelemetryData, clientId: string, enableLoggin
         deviceId: device?.deviceId,
         timestamp: new Date().toISOString(),
         data: {
-            ...data,
+            // Send original data structure but with converted values
+            timestamp: data.timestamp,
+            imu: convertedIMU || data.imu, // Use converted data if available
+            rawIMU: data.imu, // Keep raw data for debugging
+            // Enhanced motion data
             velocity,
             position,
             orientation,
-            isStationary
+            isStationary,
+            // Scale information for transparency
+            scales: {
+                accel: motionState.accelScale,
+                gyro: motionState.gyroScale,
+                autoDetected: motionState.scaleDetected
+            }
         }
     });
 }
