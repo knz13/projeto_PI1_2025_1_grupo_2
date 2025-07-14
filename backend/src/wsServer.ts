@@ -193,7 +193,20 @@ function handleSendCommandToDevice(data: DeviceCommand, senderClientId: string, 
     targetDevices.forEach(device => {
         const targetWs = clientSockets.get(device.clientId);
         if (targetWs) {
-            const sent = sendMessage(targetWs, WSMessageType.launch_command, data.command, device.clientId);
+            let messageToSend: any;
+
+            // For ESP32 acionamento devices, send simple "start" string for launch action
+            if (device.connectionType === ConnectionType.acionamento && data.command.action === 'launch') {
+                messageToSend = "start";
+                if (enableLogging) {
+                    console.log(`[WebSocket] Sending simple "start" command to ESP32 ${device.clientId}`);
+                }
+            } else {
+                // For other devices or actions, send the full JSON command
+                messageToSend = data.command;
+            }
+
+            const sent = sendRawMessage(targetWs, messageToSend, device.clientId);
             if (sent) successCount++;
         }
     });
@@ -282,6 +295,15 @@ function sendMessage(ws: any, type: WSMessageType, data: any, clientId?: string)
             clientId
         };
         ws.send(JSON.stringify(message));
+        return true;
+    }
+    return false;
+}
+
+function sendRawMessage(ws: any, data: any, clientId?: string): boolean {
+    if (ws && ws.readyState === 1) { // WebSocket.OPEN = 1
+        // Send raw data (string, number, etc.) without JSON wrapper
+        ws.send(data);
         return true;
     }
     return false;
