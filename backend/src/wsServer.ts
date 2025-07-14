@@ -201,6 +201,11 @@ function handleSendCommandToDevice(data: DeviceCommand, senderClientId: string, 
                 if (enableLogging) {
                     console.log(`[WebSocket] Sending simple "start" command to ESP32 ${device.clientId}`);
                 }
+            } else if (device.connectionType === ConnectionType.acionamento && data.command.action === 'reset') {
+                messageToSend = "reset";
+                if (enableLogging) {
+                    console.log(`[WebSocket] Sending simple \"reset\" command to ESP32 ${device.clientId}`);
+                }
             } else {
                 // For other devices or actions, send the full JSON command
                 messageToSend = data.command;

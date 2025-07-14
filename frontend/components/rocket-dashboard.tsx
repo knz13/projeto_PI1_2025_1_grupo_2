@@ -334,6 +334,17 @@ export default function RocketDashboard() {
                 Reset
               </Button>
             </div>
+            {/* NEW: Reset Acionamento Button */}
+            <div className="flex justify-center mt-4">
+              <Button
+                onClick={() => handleLaunchCommand('reset')}
+                disabled={!wsConnected || connectedDevices.filter(d => d.connectionType === ConnectionType.acionamento).length === 0}
+                variant="secondary"
+                className="text-sm h-10 sm:h-auto"
+              >
+                Reset Acionamento
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
