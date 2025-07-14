@@ -262,30 +262,37 @@ export default function RocketDashboard() {
                     <div className="flex flex-col">
                       <span className="text-gray-500">Aceleração X:</span>
                       <span className="font-medium">
-                        {telemetryData.imu?.accel?.x ? telemetryData.imu.accel.x.toFixed(0) : 'N/A'}
+                        {telemetryData.imu?.accel?.x ? telemetryData.imu.accel.x.toFixed(2) : 'N/A'} m/s²
                       </span>
                     </div>
                     <div className="flex flex-col">
                       <span className="text-gray-500">Aceleração Y:</span>
                       <span className="font-medium">
-                        {telemetryData.imu?.accel?.y ? telemetryData.imu.accel.y.toFixed(0) : 'N/A'}
+                        {telemetryData.imu?.accel?.y ? telemetryData.imu.accel.y.toFixed(2) : 'N/A'} m/s²
                       </span>
                     </div>
                     <div className="flex flex-col">
                       <span className="text-gray-500">Aceleração Z:</span>
                       <span className="font-medium">
-                        {telemetryData.imu?.accel?.z ? telemetryData.imu.accel.z.toFixed(0) : 'N/A'}
+                        {telemetryData.imu?.accel?.z ? telemetryData.imu.accel.z.toFixed(2) : 'N/A'} m/s²
                       </span>
                     </div>
                     <div className="flex flex-col">
                       <span className="text-gray-500">Magnitude Accel:</span>
                       <span className="font-medium">
-                        {telemetryData.imu?.accel ?
-                          Math.sqrt(
+                        {telemetryData.imu?.accel ? (() => {
+                          const magnitude = Math.sqrt(
                             Math.pow(telemetryData.imu.accel.x, 2) +
                             Math.pow(telemetryData.imu.accel.y, 2) +
                             Math.pow(telemetryData.imu.accel.z, 2)
-                          ).toFixed(0) : 'N/A'}
+                          );
+                          const isNearGravity = Math.abs(magnitude - 9.81) < 1.0;
+                          return (
+                            <span className={isNearGravity ? 'text-green-600' : ''}>
+                              {magnitude.toFixed(2)} m/s² {isNearGravity ? '✓' : ''}
+                            </span>
+                          );
+                        })() : 'N/A'}
                       </span>
                     </div>
                     <div className="flex flex-col">
@@ -344,19 +351,19 @@ export default function RocketDashboard() {
                     <div className="flex flex-col">
                       <span className="text-gray-500">Gyro X:</span>
                       <span className="font-medium">
-                        {telemetryData.imu?.gyro?.x ? telemetryData.imu.gyro.x.toFixed(0) : 'N/A'}
+                        {telemetryData.imu?.gyro?.x ? telemetryData.imu.gyro.x.toFixed(3) : 'N/A'} rad/s
                       </span>
                     </div>
                     <div className="flex flex-col">
                       <span className="text-gray-500">Gyro Y:</span>
                       <span className="font-medium">
-                        {telemetryData.imu?.gyro?.y ? telemetryData.imu.gyro.y.toFixed(0) : 'N/A'}
+                        {telemetryData.imu?.gyro?.y ? telemetryData.imu.gyro.y.toFixed(3) : 'N/A'} rad/s
                       </span>
                     </div>
                     <div className="flex flex-col">
                       <span className="text-gray-500">Gyro Z:</span>
                       <span className="font-medium">
-                        {telemetryData.imu?.gyro?.z ? telemetryData.imu.gyro.z.toFixed(0) : 'N/A'}
+                        {telemetryData.imu?.gyro?.z ? telemetryData.imu.gyro.z.toFixed(3) : 'N/A'} rad/s
                       </span>
                     </div>
                     <div className="flex flex-col">
@@ -365,7 +372,46 @@ export default function RocketDashboard() {
                         {telemetryData.timestamp ? `${telemetryData.timestamp}ms` : 'N/A'}
                       </span>
                     </div>
+                    <div className="flex flex-col">
+                      <span className="text-gray-500">Status:</span>
+                      <span className={`font-medium ${telemetryData.isStationary ? 'text-blue-600' : 'text-green-600'}`}>
+                        {telemetryData.isStationary ? '🛑 Parado' : '🚀 Em movimento'}
+                      </span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-gray-500">Orientação (W):</span>
+                      <span className="font-medium">
+                        {telemetryData.orientation?.w ? telemetryData.orientation.w.toFixed(3) : 'N/A'}
+                      </span>
+                    </div>
                   </div>
+
+                  {/* Quaternion details in a separate section */}
+                  {telemetryData.orientation && (
+                    <div className="mt-3 pt-2 border-t border-yellow-200">
+                      <div className="text-xs text-gray-600 mb-2">
+                        <span className="font-medium">🧭 Orientação (Quaternion):</span>
+                      </div>
+                      <div className="grid grid-cols-4 gap-2 text-xs">
+                        <div className="flex flex-col">
+                          <span className="text-gray-500">W:</span>
+                          <span className="font-medium">{telemetryData.orientation.w.toFixed(3)}</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-gray-500">X:</span>
+                          <span className="font-medium">{telemetryData.orientation.x.toFixed(3)}</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-gray-500">Y:</span>
+                          <span className="font-medium">{telemetryData.orientation.y.toFixed(3)}</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-gray-500">Z:</span>
+                          <span className="font-medium">{telemetryData.orientation.z.toFixed(3)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   {lastTelemetryMessage && (
                     <div className="mt-3 pt-2 border-t border-yellow-200">
                       <div className="text-xs text-gray-600 mb-2">

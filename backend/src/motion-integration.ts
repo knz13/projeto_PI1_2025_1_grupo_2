@@ -41,6 +41,11 @@ export interface MotionState {
     // Madgwick filter state
     madgwick: MadgwickFilter;
 
+    // IMU calibration
+    accelScale: number;
+    gyroScale: number;
+    scaleDetected: boolean;
+
     // Debug settings
     enableOutlierDetection: boolean;
 }
@@ -299,6 +304,11 @@ export function initializeMotionState(sampleRate: number = 100, enableOutlierDet
         // Madgwick filter - optimized for 100 Hz
         madgwick: new MadgwickFilter(0.05, sampleRate), // Lower beta for more stable orientation at high freq
 
+        // IMU calibration - will be auto-detected
+        accelScale: 9.81 / 16384, // Default to ±2g range
+        gyroScale: Math.PI / (180 * 131.0), // Default to ±250°/s range
+        scaleDetected: false,
+
         // Debug settings - disabled by default for now
         enableOutlierDetection
     };
@@ -327,6 +337,7 @@ export function integrateMotion(imuData: IMUData, state: MotionState): {
 
     // Skip if time delta is invalid
     if (deltaTime > 1.0 || deltaTime <= 0) {
+        console.log(`[Motion] Invalid deltaTime: ${deltaTime}s, skipping frame`);
         state.lastTimestamp = imuData.timestamp;
         return {
             position: state.position,
@@ -336,30 +347,54 @@ export function integrateMotion(imuData: IMUData, state: MotionState): {
         };
     }
 
-    // Convert raw IMU data to m/s² and rad/s
-    const accelScale = 9.81 / 16384; // Adjust based on your IMU scale
-    const gyroScale = Math.PI / (180 * 131.0); // Adjust based on your IMU scale
+    // Log timing if significantly different from expected 10ms (100 Hz)
+    const expectedDelta = 0.01; // 10ms
+    if (Math.abs(deltaTime - expectedDelta) > 0.005) { // More than 5ms deviation
+        console.log(`[Motion] Timing deviation: ${(deltaTime * 1000).toFixed(1)}ms (expected: 10ms)`);
+    }
 
+    // Auto-detect IMU scale on first few samples if not already detected
+    if (!state.scaleDetected && state.accelHistory.length < 5) {
+        const rawMag = VectorUtils.magnitude(imuData.accel);
+        const detected = detectAccelRange(rawMag);
+        state.accelScale = 9.81 / detected.scale;
+        state.scaleDetected = true;
+        console.log(`[Motion] Auto-detected accelerometer: ${detected.range} (${detected.scale} LSB/g)`);
+        console.log(`[Motion] Raw magnitude: ${rawMag.toFixed(0)} LSB → ${(rawMag * state.accelScale).toFixed(2)} m/s²`);
+    }
+
+    // Convert raw IMU data to m/s² and rad/s using detected/configured scales
     const rawAccel: Vector3 = {
-        x: imuData.accel.x * accelScale,
-        y: imuData.accel.y * accelScale,
-        z: imuData.accel.z * accelScale
+        x: imuData.accel.x * state.accelScale,
+        y: imuData.accel.y * state.accelScale,
+        z: imuData.accel.z * state.accelScale
     };
 
     const rawGyro: Vector3 = {
-        x: imuData.gyro.x * gyroScale,
-        y: imuData.gyro.y * gyroScale,
-        z: imuData.gyro.z * gyroScale
+        x: imuData.gyro.x * state.gyroScale,
+        y: imuData.gyro.y * state.gyroScale,
+        z: imuData.gyro.z * state.gyroScale
     };
+
+    // Debug: Log both raw and converted values occasionally
+    const shouldLogDebug = state.accelHistory.length % 100 === 0; // Every 1 second at 100Hz
+    if (shouldLogDebug) {
+        const rawMag = VectorUtils.magnitude(imuData.accel);
+        const convertedMag = VectorUtils.magnitude(rawAccel);
+        console.log(`[Motion] Raw accel magnitude: ${rawMag.toFixed(0)} LSB, Converted: ${convertedMag.toFixed(2)} m/s²`);
+        console.log(`[Motion] Current scales: Accel=${(9.81 / state.accelScale).toFixed(0)} LSB/g, Gyro=${(180 * state.gyroScale / Math.PI).toFixed(1)} LSB/°/s`);
+    }
 
     // Update acceleration history for outlier detection
     state.accelHistory.push({ ...rawAccel });
-    if (state.accelHistory.length > 20) {
+    const MAX_ACCEL_HISTORY = 30; // 300ms at 100 Hz
+    if (state.accelHistory.length > MAX_ACCEL_HISTORY) {
         state.accelHistory.shift();
     }
 
     // Outlier detection and rejection (currently disabled for debugging)
-    const isOutlier = detectOutliers(rawAccel, state.accelHistory, 15, 8.0, state.enableOutlierDetection);
+    const OUTLIER_WINDOW_SIZE = 20; // 200ms at 100 Hz for better statistical reliability
+    const isOutlier = detectOutliers(rawAccel, state.accelHistory, OUTLIER_WINDOW_SIZE, 8.0, state.enableOutlierDetection);
     if (isOutlier) {
         const accelMag = VectorUtils.magnitude(rawAccel);
         console.log('[Motion] Outlier detected, skipping frame.');
@@ -427,9 +462,10 @@ export function integrateMotion(imuData: IMUData, state: MotionState): {
         if (state.velocity.z < 0) state.velocity.z = 0;
     }
 
-    // Update velocity history for outlier detection
+    // Update velocity history for ZUPT and analysis
     state.velocityHistory.push({ ...state.velocity });
-    if (state.velocityHistory.length > 20) {
+    const MAX_VELOCITY_HISTORY = 50; // 500ms at 100 Hz
+    if (state.velocityHistory.length > MAX_VELOCITY_HISTORY) {
         state.velocityHistory.shift();
     }
 
@@ -466,4 +502,91 @@ export function resetMotionState(state: MotionState): void {
 export function setOutlierDetection(state: MotionState, enabled: boolean): void {
     state.enableOutlierDetection = enabled;
     console.log(`[Motion] Outlier detection ${enabled ? 'enabled' : 'disabled'}`);
+}
+
+// Utility function to get motion state summary for debugging
+export function getMotionStateSummary(state: MotionState): string {
+    const posMag = VectorUtils.magnitude(state.position);
+    const velMag = VectorUtils.magnitude(state.velocity);
+    const accelHistorySize = state.accelHistory.length;
+    const velHistorySize = state.velocityHistory.length;
+
+    return `Pos: ${posMag.toFixed(2)}m, Vel: ${velMag.toFixed(2)}m/s, ` +
+        `ZUPT counter: ${state.zuptCounter}, Histories: A=${accelHistorySize}, V=${velHistorySize}`;
+}
+
+// MPU6050 scale factors for different ranges
+export const MPU6050_SCALES = {
+    ACCEL: {
+        RANGE_2G: 16384,   // LSB/g for ±2g range
+        RANGE_4G: 8192,    // LSB/g for ±4g range  
+        RANGE_8G: 4096,    // LSB/g for ±8g range
+        RANGE_16G: 2048    // LSB/g for ±16g range
+    },
+    GYRO: {
+        RANGE_250: 131.0,  // LSB/°/s for ±250°/s range
+        RANGE_500: 65.5,   // LSB/°/s for ±500°/s range
+        RANGE_1000: 32.8,  // LSB/°/s for ±1000°/s range
+        RANGE_2000: 16.4   // LSB/°/s for ±2000°/s range
+    }
+};
+
+// Detect MPU6050 accelerometer range based on stationary readings
+export function detectAccelRange(rawAccelMagnitude: number): { range: string, scale: number } {
+    // Calculate differences for each range
+    const ranges = [
+        { name: '±2g', expected: MPU6050_SCALES.ACCEL.RANGE_2G, scale: MPU6050_SCALES.ACCEL.RANGE_2G },
+        { name: '±4g', expected: MPU6050_SCALES.ACCEL.RANGE_4G, scale: MPU6050_SCALES.ACCEL.RANGE_4G },
+        { name: '±8g', expected: MPU6050_SCALES.ACCEL.RANGE_8G, scale: MPU6050_SCALES.ACCEL.RANGE_8G },
+        { name: '±16g', expected: MPU6050_SCALES.ACCEL.RANGE_16G, scale: MPU6050_SCALES.ACCEL.RANGE_16G }
+    ];
+
+    // Find closest match
+    let bestMatch = ranges[0];
+    let minDiff = Math.abs(rawAccelMagnitude - bestMatch.expected);
+
+    for (const range of ranges) {
+        const diff = Math.abs(rawAccelMagnitude - range.expected);
+        if (diff < minDiff) {
+            minDiff = diff;
+            bestMatch = range;
+        }
+    }
+
+    return { range: bestMatch.name, scale: bestMatch.scale };
+}
+
+// Convert raw IMU values to physical units
+export function convertIMUData(rawAccel: Vector3, rawGyro: Vector3, accelScale?: number, gyroScale?: number): {
+    accel: Vector3;
+    gyro: Vector3;
+    accelScale: number;
+    gyroScale: number;
+} {
+    // Auto-detect scale if not provided
+    if (!accelScale) {
+        const rawMag = VectorUtils.magnitude(rawAccel);
+        const detected = detectAccelRange(rawMag);
+        accelScale = 9.81 / detected.scale;
+        console.log(`[Motion] Auto-detected accelerometer range: ${detected.range} (scale: ${detected.scale} LSB/g)`);
+    }
+
+    if (!gyroScale) {
+        gyroScale = Math.PI / (180 * MPU6050_SCALES.GYRO.RANGE_250); // Default to ±250°/s
+    }
+
+    return {
+        accel: {
+            x: rawAccel.x * accelScale,
+            y: rawAccel.y * accelScale,
+            z: rawAccel.z * accelScale
+        },
+        gyro: {
+            x: rawGyro.x * gyroScale,
+            y: rawGyro.y * gyroScale,
+            z: rawGyro.z * gyroScale
+        },
+        accelScale,
+        gyroScale
+    };
 } 
