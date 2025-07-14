@@ -165,6 +165,11 @@ function handleSendCommandToDevice(data: DeviceCommand, senderClientId: string, 
         return;
     }
 
+    // Log the distance parameter if present
+    if (enableLogging && data.command?.parameters?.distance) {
+        console.log(`[WebSocket] Launch command distance: ${data.command.parameters.distance}m`);
+    }
+
     let targetDevices: ConnectedDevice[] = [];
 
     if (data.targetDeviceId) {

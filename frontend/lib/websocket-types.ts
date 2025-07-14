@@ -60,6 +60,7 @@ export interface LaunchCommand {
         angle?: number;
         pressure?: number;
         weight?: number;
+        distance?: number; // NEW: allow distance
     };
 }
 

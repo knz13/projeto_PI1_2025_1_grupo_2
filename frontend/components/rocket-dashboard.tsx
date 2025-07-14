@@ -26,6 +26,7 @@ export default function RocketDashboard() {
   const [wsConnected, setWsConnected] = useState(false)
   const [connectedDevices, setConnectedDevices] = useState<ConnectedDevice[]>([])
   const [telemetryData, setTelemetryData] = useState<any>(null)
+  const [selectedDistance, setSelectedDistance] = useState(10); // NEW: launch type selector
 
 
   // Fetch launch data
@@ -118,7 +119,8 @@ export default function RocketDashboard() {
       parameters: {
         angle: 45, // Default values, could be made configurable
         pressure: 30,
-        weight: 0.5
+        weight: 0.5,
+        distance: selectedDistance // NEW: include selected distance
       }
     };
 
@@ -286,6 +288,20 @@ export default function RocketDashboard() {
             <CardTitle className="text-base sm:text-lg text-pink-700">Controle de Lançamento</CardTitle>
           </CardHeader>
           <CardContent className="pt-4">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
+              <label className="flex items-center gap-2 text-sm font-medium">
+                Distância:
+                <select
+                  value={selectedDistance}
+                  onChange={e => setSelectedDistance(Number(e.target.value))}
+                  className="border rounded px-2 py-1 text-sm focus:outline-pink-500"
+                >
+                  <option value={10}>10 metros</option>
+                  <option value={20}>20 metros</option>
+                  <option value={30}>30 metros</option>
+                </select>
+              </label>
+            </div>
             <div className="grid grid-cols-2 sm:flex sm:justify-center gap-2 sm:gap-4">
               <Button
                 onClick={() => handleLaunchCommand('prepare')}
