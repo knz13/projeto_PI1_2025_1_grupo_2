@@ -37,6 +37,30 @@ function initializeTelemetryState(clientId: string): TelemetryState {
     };
 }
 
+// Helper function to reset telemetry state (for launch resets)
+function resetTelemetryState(clientId: string) {
+    const state = telemetryStates.get(clientId);
+    if (state) {
+        state.velocity = { x: 0, y: 0, z: 0 };
+        state.position = { x: 0, y: 0, z: 0 };
+        state.isInitialized = false;
+        console.log(`[WebSocket] Reset telemetry state for device ${clientId}`);
+    }
+}
+
+// Helper function to check if we should reset due to low motion
+function shouldResetDueToLowMotion(velocity: { x: number; y: number; z: number }, acceleration: { x: number; y: number; z: number }): boolean {
+    const velocityMagnitude = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y + velocity.z * velocity.z);
+    const accelMagnitude = Math.sqrt(acceleration.x * acceleration.x + acceleration.y * acceleration.y + acceleration.z * acceleration.z);
+
+    // Convert acceleration to m/s² for comparison
+    const accelScale = 9.81 / 16384;
+    const accelMs2Magnitude = accelMagnitude * accelScale;
+
+    // Reset if velocity is very low and acceleration is close to just gravity (indicating rest)
+    return velocityMagnitude < 0.1 && Math.abs(accelMs2Magnitude - 9.81) < 2.0;
+}
+
 // Helper function to integrate acceleration to get velocity and position
 function integrateMotion(
     acceleration: { x: number; y: number; z: number },
@@ -74,10 +98,19 @@ function integrateMotion(
     state.velocity.y += accelMs2.y * deltaTime;
     state.velocity.z += accelMs2.z * deltaTime;
 
+    // Apply velocity deadband to prevent drift from noise
+    const velocityDeadband = 0.05; // m/s
+    if (Math.abs(state.velocity.x) < velocityDeadband) state.velocity.x = 0;
+    if (Math.abs(state.velocity.y) < velocityDeadband) state.velocity.y = 0;
+    if (Math.abs(state.velocity.z) < velocityDeadband) state.velocity.z = 0;
+
     // Integrate velocity to get position (s = s0 + v*dt + 0.5*a*dt²)
     state.position.x += state.velocity.x * deltaTime + 0.5 * accelMs2.x * deltaTime * deltaTime;
     state.position.y += state.velocity.y * deltaTime + 0.5 * accelMs2.y * deltaTime * deltaTime;
     state.position.z += state.velocity.z * deltaTime + 0.5 * accelMs2.z * deltaTime * deltaTime;
+
+    // Prevent negative altitude (assuming Z is up)
+    if (state.position.z < 0) state.position.z = 0;
 
     // Update timestamp
     state.lastTimestamp = currentTimestamp;
@@ -285,6 +318,11 @@ function handleSendCommandToDevice(data: DeviceCommand, senderClientId: string, 
             const sent = sendRawMessage(targetWs, messageToSend, device.clientId);
             if (sent) successCount++;
         }
+
+        // Reset telemetry integration state for launch or reset commands
+        if (data.command.action === 'launch' || data.command.action === 'reset') {
+            resetTelemetryState(device.clientId);
+        }
     });
 
     // Send response back to sender
@@ -329,6 +367,11 @@ function handleTelemetryData(data: TelemetryData, clientId: string, enableLoggin
         position = integration.position;
     }
 
+    // Check if we should reset due to low motion
+    if (shouldResetDueToLowMotion(velocity, data.imu.accel)) {
+        resetTelemetryState(clientId);
+    }
+
     // Broadcast telemetry data to websites
     broadcastToWebsites({
         type: 'telemetry_update',
@@ -353,6 +396,9 @@ function handleLaunchCommand(data: LaunchCommand, clientId: string, enableLoggin
     if (device) {
         device.lastSeen = new Date();
     }
+
+    // Reset telemetry state for the device
+    resetTelemetryState(clientId);
 
     // Broadcast command status to websites
     broadcastToWebsites({
