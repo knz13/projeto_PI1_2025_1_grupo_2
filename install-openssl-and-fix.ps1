@@ -92,7 +92,7 @@ if ($opensslPath) {
         # Criar certificado auto-assinado
         & openssl req -x509 -newkey rsa:2048 -nodes -keyout nginx/ssl/key.pem -out nginx/ssl/cert.pem -days 365 -subj "/C=BR/ST=State/L=City/O=Organization/CN=localhost"
         
-        if (Test-Path "nginx/ssl/cert.pem" -and Test-Path "nginx/ssl/key.pem") {
+        if ((Test-Path "nginx/ssl/cert.pem") -and (Test-Path "nginx/ssl/key.pem")) {
             Write-Host "✅ Certificados SSL criados com OpenSSL!" -ForegroundColor Green
             
             # Verificar se os certificados são válidos
