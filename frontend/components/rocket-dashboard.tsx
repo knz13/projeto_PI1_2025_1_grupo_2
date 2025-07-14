@@ -14,7 +14,7 @@ import {
   ConnectionType,
   ConnectedDevice,
   LaunchCommand
-} from "@/lib/websocket-types"
+} from "../lib/websocket-types"
 
 export default function RocketDashboard() {
   const [activeTab, setActiveTab] = useState("rocket")
@@ -137,15 +137,15 @@ export default function RocketDashboard() {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex flex-col items-center mb-8">
+      <div className="container mx-auto px-4 py-4 sm:py-8">
+        <div className="flex flex-col items-center mb-6 sm:mb-8">
           <PinkBoomLogo />
-          <p className="text-gray-600 text-sm mt-1">Sistema de Análise de Lançamentos de Foguetes d'Água</p>
+          <p className="text-gray-600 text-xs sm:text-sm mt-1 text-center px-2">Sistema de Análise de Lançamentos de Foguetes d'Água</p>
         </div>
         <div className="flex justify-center items-center min-h-[200px]">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500 mx-auto mb-4"></div>
-            <p className="text-gray-600">Carregando dados e conectando ao WebSocket...</p>
+            <p className="text-gray-600 text-sm">Carregando dados e conectando ao WebSocket...</p>
           </div>
         </div>
       </div>
@@ -153,47 +153,47 @@ export default function RocketDashboard() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex flex-col items-center mb-8">
+    <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
+      <div className="flex flex-col items-center mb-6 sm:mb-8">
         <PinkBoomLogo />
-        <p className="text-gray-600 text-sm mt-1">Sistema de Análise de Lançamentos de Foguetes d'Água</p>
+        <p className="text-gray-600 text-xs sm:text-sm mt-1 text-center px-2">Sistema de Análise de Lançamentos de Foguetes d'Água</p>
       </div>
 
       <Tabs defaultValue="rocket" className="w-full max-w-6xl mx-auto" onValueChange={setActiveTab}>
-        <TabsList className="w-full justify-start mb-6 bg-pink-50 border-pink-100 border">
-          <TabsTrigger value="rocket" className="data-[state=active]:bg-pink-500 data-[state=active]:text-white">
+        <TabsList className="w-full justify-start mb-4 sm:mb-6 bg-pink-50 border-pink-100 border">
+          <TabsTrigger value="rocket" className="data-[state=active]:bg-pink-500 data-[state=active]:text-white text-sm">
             Dados do Foguete
           </TabsTrigger>
         </TabsList>
 
         {/* WebSocket and ESP32 Status Section */}
-        <Card className="mb-6 border-pink-100">
+        <Card className="mb-4 sm:mb-6 border-pink-100">
           <CardHeader className="bg-pink-50 py-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg text-pink-700">Status da Conexão</CardTitle>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0">
+              <CardTitle className="text-base sm:text-lg text-pink-700">Status da Conexão</CardTitle>
               <div className="flex items-center gap-2">
-                <Badge variant={wsConnected ? "default" : "destructive"} className={wsConnected ? "bg-green-500" : "bg-red-500"}>
-                  WebSocket: {wsConnected ? "Conectado" : "Desconectado"}
+                <Badge variant={wsConnected ? "default" : "destructive"} className={`text-xs ${wsConnected ? "bg-green-500" : "bg-red-500"}`}>
+                  {wsConnected ? "Conectado" : "Desconectado"}
                 </Badge>
                 <Button
                   onClick={() => wsClient?.getConnectedDevices()}
                   disabled={!wsConnected}
                   size="sm"
                   variant="outline"
-                  className="text-xs"
+                  className="text-xs h-7 px-2"
                 >
-                  🔄 Atualizar
+                  🔄
                 </Button>
               </div>
             </div>
           </CardHeader>
           <CardContent className="pt-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-3 sm:gap-4">
               <Card className="border-blue-100">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    🚀 ESP32 Acionamento
-                    <Badge variant={connectedDevices.some(d => d.connectionType === ConnectionType.acionamento) ? "default" : "secondary"}>
+                  <CardTitle className="text-sm flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                    <span>🚀 ESP32 Acionamento</span>
+                    <Badge variant={connectedDevices.some(d => d.connectionType === ConnectionType.acionamento) ? "default" : "secondary"} className="text-xs w-fit">
                       {connectedDevices.filter(d => d.connectionType === ConnectionType.acionamento).length} conectado(s)
                     </Badge>
                   </CardTitle>
@@ -203,9 +203,9 @@ export default function RocketDashboard() {
                     connectedDevices
                       .filter(d => d.connectionType === ConnectionType.acionamento)
                       .map(device => (
-                        <div key={device.clientId} className="text-xs text-gray-600">
-                          ID: {device.deviceId || device.clientId.substring(0, 8)}
-                          <Badge variant="outline" className="ml-2 text-xs">
+                        <div key={device.clientId} className="text-xs text-gray-600 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                          <span>ID: {device.deviceId || device.clientId.substring(0, 8)}</span>
+                          <Badge variant="outline" className="text-xs w-fit">
                             {device.status}
                           </Badge>
                         </div>
@@ -218,9 +218,9 @@ export default function RocketDashboard() {
 
               <Card className="border-green-100">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    📡 ESP32 Telemetria
-                    <Badge variant={connectedDevices.some(d => d.connectionType === ConnectionType.telemetria) ? "default" : "secondary"}>
+                  <CardTitle className="text-sm flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                    <span>📡 ESP32 Telemetria</span>
+                    <Badge variant={connectedDevices.some(d => d.connectionType === ConnectionType.telemetria) ? "default" : "secondary"} className="text-xs w-fit">
                       {connectedDevices.filter(d => d.connectionType === ConnectionType.telemetria).length} conectado(s)
                     </Badge>
                   </CardTitle>
@@ -230,9 +230,9 @@ export default function RocketDashboard() {
                     connectedDevices
                       .filter(d => d.connectionType === ConnectionType.telemetria)
                       .map(device => (
-                        <div key={device.clientId} className="text-xs text-gray-600">
-                          ID: {device.deviceId || device.clientId.substring(0, 8)}
-                          <Badge variant="outline" className="ml-2 text-xs">
+                        <div key={device.clientId} className="text-xs text-gray-600 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                          <span>ID: {device.deviceId || device.clientId.substring(0, 8)}</span>
+                          <Badge variant="outline" className="text-xs w-fit">
                             {device.status}
                           </Badge>
                         </div>
@@ -250,28 +250,28 @@ export default function RocketDashboard() {
                   <CardTitle className="text-sm text-yellow-700">📊 Telemetria em Tempo Real</CardTitle>
                 </CardHeader>
                 <CardContent className="py-2">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-                    <div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="flex flex-col">
                       <span className="text-gray-500">Altitude:</span>
-                      <span className="font-medium ml-1">
+                      <span className="font-medium">
                         {telemetryData.altitude ? telemetryData.altitude[telemetryData.altitude.length - 1]?.toFixed(2) : 'N/A'} m
                       </span>
                     </div>
-                    <div>
+                    <div className="flex flex-col">
                       <span className="text-gray-500">Velocidade:</span>
-                      <span className="font-medium ml-1">
+                      <span className="font-medium">
                         {telemetryData.velocity ? telemetryData.velocity[telemetryData.velocity.length - 1]?.toFixed(2) : 'N/A'} m/s
                       </span>
                     </div>
-                    <div>
+                    <div className="flex flex-col">
                       <span className="text-gray-500">Aceleração:</span>
-                      <span className="font-medium ml-1">
+                      <span className="font-medium">
                         {telemetryData.acceleration ? telemetryData.acceleration[telemetryData.acceleration.length - 1]?.toFixed(2) : 'N/A'} m/s²
                       </span>
                     </div>
-                    <div>
+                    <div className="flex flex-col">
                       <span className="text-gray-500">Status:</span>
-                      <span className="font-medium ml-1">{telemetryData.status || 'N/A'}</span>
+                      <span className="font-medium">{telemetryData.status || 'N/A'}</span>
                     </div>
                   </div>
                 </CardContent>
@@ -281,23 +281,23 @@ export default function RocketDashboard() {
         </Card>
 
         {/* Launch Control Section */}
-        <Card className="mb-6 border-pink-100">
+        <Card className="mb-4 sm:mb-6 border-pink-100">
           <CardHeader className="bg-pink-50 py-3">
-            <CardTitle className="text-lg text-pink-700">Controle de Lançamento</CardTitle>
+            <CardTitle className="text-base sm:text-lg text-pink-700">Controle de Lançamento</CardTitle>
           </CardHeader>
           <CardContent className="pt-4">
-            <div className="flex justify-center gap-4">
+            <div className="grid grid-cols-2 sm:flex sm:justify-center gap-2 sm:gap-4">
               <Button
                 onClick={() => handleLaunchCommand('prepare')}
                 disabled={!wsConnected || connectedDevices.filter(d => d.connectionType === ConnectionType.acionamento).length === 0}
-                className="bg-blue-500 hover:bg-blue-700 text-white"
+                className="bg-blue-500 hover:bg-blue-700 text-white text-sm h-10 sm:h-auto"
               >
                 Preparar
               </Button>
               <Button
                 onClick={() => handleLaunchCommand('launch')}
                 disabled={!wsConnected || connectedDevices.filter(d => d.connectionType === ConnectionType.acionamento).length === 0}
-                className="bg-pink-500 hover:bg-pink-700 text-white font-semibold"
+                className="bg-pink-500 hover:bg-pink-700 text-white font-semibold text-sm h-10 sm:h-auto"
               >
                 🚀 Lançar!
               </Button>
@@ -305,6 +305,7 @@ export default function RocketDashboard() {
                 onClick={() => handleLaunchCommand('abort')}
                 disabled={!wsConnected || connectedDevices.filter(d => d.connectionType === ConnectionType.acionamento).length === 0}
                 variant="destructive"
+                className="text-sm h-10 sm:h-auto"
               >
                 Abortar
               </Button>
@@ -312,6 +313,7 @@ export default function RocketDashboard() {
                 onClick={() => handleLaunchCommand('reset')}
                 disabled={!wsConnected || connectedDevices.filter(d => d.connectionType === ConnectionType.acionamento).length === 0}
                 variant="outline"
+                className="text-sm h-10 sm:h-auto"
               >
                 Reset
               </Button>
@@ -319,25 +321,27 @@ export default function RocketDashboard() {
           </CardContent>
         </Card>
 
-        <TabsContent value="rocket" className="space-y-6">
+        <TabsContent value="rocket" className="space-y-4 sm:space-y-6">
           <Card className="max-w-6xl mx-auto">
             <CardHeader className="bg-pink-50">
-              <CardTitle className="text-xl text-pink-700">Análise de Lançamentos</CardTitle>
+              <CardTitle className="text-lg sm:text-xl text-pink-700">Análise de Lançamentos</CardTitle>
             </CardHeader>
-            <CardContent className="pt-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <CardContent className="pt-4 sm:pt-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
                 {launchData.map((launch, index) => (
                   <Card key={index} className="border-pink-100">
                     <CardHeader className="pb-2">
-                      <CardTitle className="text-lg">
-                        Lançamento {index + 1}
-                        <span className="text-sm font-normal text-gray-500 ml-2">
-                          {index === 0 ? "10 metros" : index === 1 ? "20 metros" : "30 metros"}
-                        </span>
+                      <CardTitle className="text-base sm:text-lg">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                          <span>Lançamento {index + 1}</span>
+                          <span className="text-xs sm:text-sm font-normal text-gray-500">
+                            {index === 0 ? "10 metros" : index === 1 ? "20 metros" : "30 metros"}
+                          </span>
+                        </div>
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="space-y-2">
+                      <div className="space-y-2 text-sm">
                         <div className="flex justify-between">
                           <span className="text-gray-500">Data:</span>
                           <span className="font-medium">{new Date(launch.data[0].timestamp).toLocaleDateString()}</span>
