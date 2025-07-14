@@ -31,6 +31,7 @@ export interface MotionState {
     accelFilter: LowPassFilter;
     gyroFilter: LowPassFilter;
     velocityHistory: Vector3[];
+    accelHistory: Vector3[];  // Add acceleration history for outlier detection
 
     // ZUPT state
     zuptThreshold: number;
@@ -39,6 +40,9 @@ export interface MotionState {
 
     // Madgwick filter state
     madgwick: MadgwickFilter;
+
+    // Debug settings
+    enableOutlierDetection: boolean;
 }
 
 // Low-pass filter for noise reduction
@@ -213,8 +217,12 @@ export const QuaternionUtils = {
 };
 
 // Outlier detection and rejection
-export function detectOutliers(newAccel: Vector3, history: Vector3[], windowSize: number = 5, threshold: number = 3.0): boolean {
-    if (history.length < windowSize) return false;
+export function detectOutliers(newAccel: Vector3, history: Vector3[], windowSize: number = 15, threshold: number = 8.0, enableDetection: boolean = true): boolean {
+    // Optionally disable outlier detection for debugging
+    if (!enableDetection) return false;
+
+    // Need minimum samples to establish baseline - be more lenient
+    if (history.length < Math.max(5, windowSize / 3)) return false;
 
     // Calculate median of recent measurements
     const recentHistory = history.slice(-windowSize);
@@ -229,10 +237,24 @@ export function detectOutliers(newAccel: Vector3, history: Vector3[], windowSize
     mad.sort((a, b) => a - b);
     const madValue = mad[Math.floor(mad.length / 2)];
 
+    // Avoid division by zero - if MAD is too small, use standard deviation approach
+    if (madValue < 0.1) {
+        const mean = magnitudes.reduce((sum, val) => sum + val, 0) / magnitudes.length;
+        const variance = magnitudes.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / magnitudes.length;
+        const stdDev = Math.sqrt(variance);
+
+        if (stdDev < 0.1) return false; // Very consistent data, no outliers
+
+        const zScore = Math.abs(newMagnitude - mean) / stdDev;
+        return zScore > threshold;
+    }
+
     // Modified Z-score using MAD
     const modifiedZScore = Math.abs(newMagnitude - median) / (madValue * 1.4826); // 1.4826 is constant for normal distribution
 
-    return modifiedZScore > threshold;
+    // More lenient for typical IMU data ranges (usually 0-20 m/s² range)
+    // Only reject if both statistical AND absolute thresholds are exceeded
+    return modifiedZScore > threshold && Math.abs(newMagnitude - median) > 50.0;
 }
 
 // Zero Velocity Update (ZUPT) detection
@@ -255,7 +277,7 @@ export function detectZeroVelocity(accel: Vector3, gyro: Vector3, velocity: Vect
 }
 
 // Initialize motion state
-export function initializeMotionState(sampleRate: number = 100): MotionState {
+export function initializeMotionState(sampleRate: number = 100, enableOutlierDetection: boolean = false): MotionState {
     return {
         position: { x: 0, y: 0, z: 0 },
         velocity: { x: 0, y: 0, z: 0 },
@@ -263,18 +285,22 @@ export function initializeMotionState(sampleRate: number = 100): MotionState {
         lastTimestamp: 0,
         isInitialized: false,
 
-        // Initialize filters
-        accelFilter: new LowPassFilter(10, sampleRate), // 10 Hz cutoff
-        gyroFilter: new LowPassFilter(20, sampleRate),  // 20 Hz cutoff
+        // Initialize filters - optimized for rocket movement at 100 Hz
+        accelFilter: new LowPassFilter(25, sampleRate), // 25 Hz cutoff - higher for rocket dynamics
+        gyroFilter: new LowPassFilter(30, sampleRate),  // 30 Hz cutoff - higher for rotation tracking
         velocityHistory: [],
+        accelHistory: [],
 
-        // ZUPT parameters
+        // ZUPT parameters - optimized for 100 Hz (10ms intervals)
         zuptThreshold: 0.1,
         zuptCounter: 0,
-        zuptRequiredFrames: 10,
+        zuptRequiredFrames: 20, // 200ms at 100 Hz - more conservative for rocket
 
-        // Madgwick filter
-        madgwick: new MadgwickFilter(0.1, sampleRate)
+        // Madgwick filter - optimized for 100 Hz
+        madgwick: new MadgwickFilter(0.05, sampleRate), // Lower beta for more stable orientation at high freq
+
+        // Debug settings - disabled by default for now
+        enableOutlierDetection
     };
 }
 
@@ -326,9 +352,20 @@ export function integrateMotion(imuData: IMUData, state: MotionState): {
         z: imuData.gyro.z * gyroScale
     };
 
-    // Outlier detection and rejection
-    if (detectOutliers(rawAccel, state.velocityHistory, 5, 3.0)) {
-        console.log('[Motion] Outlier detected, skipping frame');
+    // Update acceleration history for outlier detection
+    state.accelHistory.push({ ...rawAccel });
+    if (state.accelHistory.length > 20) {
+        state.accelHistory.shift();
+    }
+
+    // Outlier detection and rejection (currently disabled for debugging)
+    const isOutlier = detectOutliers(rawAccel, state.accelHistory, 15, 8.0, state.enableOutlierDetection);
+    if (isOutlier) {
+        const accelMag = VectorUtils.magnitude(rawAccel);
+        console.log('[Motion] Outlier detected, skipping frame.');
+        console.log('[Motion] Accel magnitude:', accelMag.toFixed(2), 'History size:', state.accelHistory.length);
+
+        // Still update timestamp to prevent time delta issues
         state.lastTimestamp = imuData.timestamp;
         return {
             position: state.position,
@@ -415,9 +452,18 @@ export function resetMotionState(state: MotionState): void {
     state.isInitialized = false;
     state.zuptCounter = 0;
     state.velocityHistory = [];
+    state.accelHistory = [];
 
     // Reset filters
     state.accelFilter.reset();
     state.gyroFilter.reset();
     state.madgwick.reset();
+
+    // Keep outlier detection setting as is
+}
+
+// Utility function to enable/disable outlier detection during runtime
+export function setOutlierDetection(state: MotionState, enabled: boolean): void {
+    state.enableOutlierDetection = enabled;
+    console.log(`[Motion] Outlier detection ${enabled ? 'enabled' : 'disabled'}`);
 } 

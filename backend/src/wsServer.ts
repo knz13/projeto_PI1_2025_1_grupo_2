@@ -33,9 +33,10 @@ const motionStates = new Map<string, MotionState>();
 function getOrInitializeMotionState(clientId: string): MotionState {
     let state = motionStates.get(clientId);
     if (!state) {
-        state = initializeMotionState(100); // 100 Hz sample rate
+        // Disable outlier detection by default for debugging
+        state = initializeMotionState(100, false); // 100 Hz sample rate, outlier detection disabled
         motionStates.set(clientId, state);
-        console.log(`[WebSocket] Initialized advanced motion state for device ${clientId}`);
+        console.log(`[WebSocket] Initialized advanced motion state for device ${clientId} (outlier detection: disabled)`);
     }
     return state;
 }
@@ -268,9 +269,9 @@ function handleSendCommandToDevice(data: DeviceCommand, senderClientId: string, 
 }
 
 function handleTelemetryData(data: TelemetryData, clientId: string, enableLogging: boolean) {
-    if (enableLogging) {
+    /* if (enableLogging) {
         console.log(`[WebSocket] Received telemetry data from client ${clientId}:`, data);
-    }
+    } */
 
     // Update device last seen
     const device = connectedDevices.get(clientId);
