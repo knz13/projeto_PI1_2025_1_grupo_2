@@ -11,114 +11,42 @@ import {
     TelemetryData,
     DeviceCommand
 } from './interfaces';
+import {
+    MotionState,
+    IMUData,
+    Vector3,
+    Quaternion,
+    initializeMotionState,
+    integrateMotion as integrateAdvancedMotion,
+    resetMotionState as resetAdvancedMotionState
+} from './motion-integration';
 
 
 // Connected devices tracking
 const connectedDevices = new Map<string, ConnectedDevice>();
 const clientSockets = new Map<string, any>();
 
-// Telemetry integration state for each device
-interface TelemetryState {
-    lastTimestamp: number;
-    velocity: { x: number; y: number; z: number };
-    position: { x: number; y: number; z: number };
-    isInitialized: boolean;
+// Motion integration state for each device using advanced algorithms
+const motionStates = new Map<string, MotionState>();
+
+// Helper function to get or initialize motion state for a device
+function getOrInitializeMotionState(clientId: string): MotionState {
+    let state = motionStates.get(clientId);
+    if (!state) {
+        state = initializeMotionState(100); // 100 Hz sample rate
+        motionStates.set(clientId, state);
+        console.log(`[WebSocket] Initialized advanced motion state for device ${clientId}`);
+    }
+    return state;
 }
 
-const telemetryStates = new Map<string, TelemetryState>();
-
-// Helper function to initialize telemetry state for a device
-function initializeTelemetryState(clientId: string): TelemetryState {
-    return {
-        lastTimestamp: 0,
-        velocity: { x: 0, y: 0, z: 0 },
-        position: { x: 0, y: 0, z: 0 },
-        isInitialized: false
-    };
-}
-
-// Helper function to reset telemetry state (for launch resets)
-function resetTelemetryState(clientId: string) {
-    const state = telemetryStates.get(clientId);
+// Helper function to reset motion state (for launch resets)
+function resetMotionState(clientId: string) {
+    const state = motionStates.get(clientId);
     if (state) {
-        state.velocity = { x: 0, y: 0, z: 0 };
-        state.position = { x: 0, y: 0, z: 0 };
-        state.isInitialized = false;
-        console.log(`[WebSocket] Reset telemetry state for device ${clientId}`);
+        resetAdvancedMotionState(state);
+        console.log(`[WebSocket] Reset advanced motion state for device ${clientId}`);
     }
-}
-
-// Helper function to check if we should reset due to low motion
-function shouldResetDueToLowMotion(velocity: { x: number; y: number; z: number }, acceleration: { x: number; y: number; z: number }): boolean {
-    const velocityMagnitude = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y + velocity.z * velocity.z);
-    const accelMagnitude = Math.sqrt(acceleration.x * acceleration.x + acceleration.y * acceleration.y + acceleration.z * acceleration.z);
-
-    // Convert acceleration to m/s² for comparison
-    const accelScale = 9.81 / 16384;
-    const accelMs2Magnitude = accelMagnitude * accelScale;
-
-    // Reset if velocity is very low and acceleration is close to just gravity (indicating rest)
-    return velocityMagnitude < 0.1 && Math.abs(accelMs2Magnitude - 9.81) < 2.0;
-}
-
-// Helper function to integrate acceleration to get velocity and position
-function integrateMotion(
-    acceleration: { x: number; y: number; z: number },
-    currentTimestamp: number,
-    state: TelemetryState
-): { velocity: { x: number; y: number; z: number }, position: { x: number; y: number; z: number } } {
-
-    if (!state.isInitialized) {
-        state.lastTimestamp = currentTimestamp;
-        state.isInitialized = true;
-        return { velocity: state.velocity, position: state.position };
-    }
-
-    // Calculate time delta in seconds (timestamp is in milliseconds)
-    const deltaTime = (currentTimestamp - state.lastTimestamp) / 1000.0;
-
-    // Skip if time delta is too large (likely a reset or long pause)
-    if (deltaTime > 1.0 || deltaTime <= 0) {
-        state.lastTimestamp = currentTimestamp;
-        return { velocity: state.velocity, position: state.position };
-    }
-
-    // Convert acceleration from raw IMU units to m/s² (adjust scale factor as needed)
-    // Typical LSB for accelerometer is around 16384 LSB/g for ±2g range
-    const accelScale = 9.81 / 16384; // Convert to m/s²
-
-    const accelMs2 = {
-        x: acceleration.x * accelScale,
-        y: acceleration.y * accelScale,
-        z: acceleration.z * accelScale - 9.81 // Remove gravity from Z axis (assuming Z is up)
-    };
-
-    // Integrate acceleration to get velocity (v = v0 + a*dt)
-    state.velocity.x += accelMs2.x * deltaTime;
-    state.velocity.y += accelMs2.y * deltaTime;
-    state.velocity.z += accelMs2.z * deltaTime;
-
-    // Apply velocity deadband to prevent drift from noise
-    const velocityDeadband = 0.05; // m/s
-    if (Math.abs(state.velocity.x) < velocityDeadband) state.velocity.x = 0;
-    if (Math.abs(state.velocity.y) < velocityDeadband) state.velocity.y = 0;
-    if (Math.abs(state.velocity.z) < velocityDeadband) state.velocity.z = 0;
-
-    // Integrate velocity to get position (s = s0 + v*dt + 0.5*a*dt²)
-    state.position.x += state.velocity.x * deltaTime + 0.5 * accelMs2.x * deltaTime * deltaTime;
-    state.position.y += state.velocity.y * deltaTime + 0.5 * accelMs2.y * deltaTime * deltaTime;
-    state.position.z += state.velocity.z * deltaTime + 0.5 * accelMs2.z * deltaTime * deltaTime;
-
-    // Prevent negative altitude (assuming Z is up)
-    if (state.position.z < 0) state.position.z = 0;
-
-    // Update timestamp
-    state.lastTimestamp = currentTimestamp;
-
-    return {
-        velocity: { ...state.velocity },
-        position: { ...state.position }
-    };
 }
 
 export function startWsServer(appWs: expressWs.Instance) {
@@ -319,9 +247,9 @@ function handleSendCommandToDevice(data: DeviceCommand, senderClientId: string, 
             if (sent) successCount++;
         }
 
-        // Reset telemetry integration state for launch or reset commands
+        // Reset motion integration state for launch or reset commands
         if (data.command.action === 'launch' || data.command.action === 'reset') {
-            resetTelemetryState(device.clientId);
+            resetMotionState(device.clientId);
         }
     });
 
@@ -350,29 +278,36 @@ function handleTelemetryData(data: TelemetryData, clientId: string, enableLoggin
         device.lastSeen = new Date();
     }
 
-    // Get or initialize telemetry state
-    let state = telemetryStates.get(clientId);
-    if (!state) {
-        state = initializeTelemetryState(clientId);
-        telemetryStates.set(clientId, state);
-    }
+    // Get or initialize motion state
+    const motionState = getOrInitializeMotionState(clientId);
 
-    // Integrate acceleration data if available
-    let velocity = { x: 0, y: 0, z: 0 };
-    let position = { x: 0, y: 0, z: 0 };
+    // Process IMU data if available
+    let velocity: Vector3 = { x: 0, y: 0, z: 0 };
+    let position: Vector3 = { x: 0, y: 0, z: 0 };
+    let orientation: Quaternion = { w: 1, x: 0, y: 0, z: 0 };
+    let isStationary = false;
 
     if (data.imu && data.imu.accel) {
-        const integration = integrateMotion(data.imu.accel, data.timestamp, state);
-        velocity = integration.velocity;
-        position = integration.position;
+        // Create IMU data structure for the motion integration
+        const imuData: IMUData = {
+            accel: data.imu.accel,
+            gyro: data.imu.gyro || { x: 0, y: 0, z: 0 }, // Use gyro if available, otherwise zero
+            timestamp: data.timestamp
+        };
+
+        // Perform advanced motion integration
+        const result = integrateAdvancedMotion(imuData, motionState);
+        velocity = result.velocity;
+        position = result.position;
+        orientation = result.orientation;
+        isStationary = result.isStationary;
+
+        if (enableLogging && isStationary) {
+            console.log(`[WebSocket] Device ${clientId} detected as stationary`);
+        }
     }
 
-    // Check if we should reset due to low motion
-    if (shouldResetDueToLowMotion(velocity, data.imu.accel)) {
-        resetTelemetryState(clientId);
-    }
-
-    // Broadcast telemetry data to websites
+    // Broadcast telemetry data to websites with enhanced motion data
     broadcastToWebsites({
         type: 'telemetry_update',
         clientId,
@@ -381,7 +316,9 @@ function handleTelemetryData(data: TelemetryData, clientId: string, enableLoggin
         data: {
             ...data,
             velocity,
-            position
+            position,
+            orientation,
+            isStationary
         }
     });
 }
@@ -397,8 +334,8 @@ function handleLaunchCommand(data: LaunchCommand, clientId: string, enableLoggin
         device.lastSeen = new Date();
     }
 
-    // Reset telemetry state for the device
-    resetTelemetryState(clientId);
+    // Reset motion state for the device
+    resetMotionState(clientId);
 
     // Broadcast command status to websites
     broadcastToWebsites({
