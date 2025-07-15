@@ -1,7 +1,7 @@
 "use client"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Label } from "recharts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import launchData from "@/lib/data.json"
+import launchData from "@/lib/data.ts"
 
 // Colors for each launch
 const COLORS = ["#ff4d94", "#d6409f", "#9c27b0"]

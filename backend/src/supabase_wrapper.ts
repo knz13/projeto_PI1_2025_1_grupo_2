@@ -1,6 +1,7 @@
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
+
 export const SupabaseWrapper = {
     _supabase: null as SupabaseClient | null,
     init: () => {
@@ -22,3 +23,6 @@ export const SupabaseWrapper = {
     },
 
 }
+
+
+

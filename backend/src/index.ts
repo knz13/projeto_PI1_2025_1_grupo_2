@@ -199,3 +199,24 @@ app.listen(port, host, () => {
 });
 
 
+// Endpoint para enviar dados de todos os controllers para o frontend
+app.get('/controllers-data', async (req: Request, res: Response) => {
+    try {
+        const data: Record<string, any> = {};
+        
+        for (const controller of controllers) {
+            if (typeof controller.getAllData === 'function') {
+                //nao sei se o getAllData() é necessario
+                data[controller.name] = await controller.getAllData();
+            } else {
+                data[controller.name] = null;
+            }
+        }
+        res.status(200).json(data);
+    } catch (error) {
+        res.status(500).json({
+            error: 'Failed to fetch controllers data',
+            message: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
