@@ -288,33 +288,13 @@ export function detectOutliers(newAccel: Vector3, history: Vector3[], windowSize
     return modifiedZScore > threshold && Math.abs(newMagnitude - median) > 50.0;
 }
 
-// Zero Velocity Update (ZUPT) detection
 export function detectZeroVelocity(accel: Vector3, gyro: Vector3, velocity: Vector3): boolean {
     const accelMag = VectorUtils.magnitude(accel);
-    const gyroMag = VectorUtils.magnitude(gyro);
-    const velMag = VectorUtils.magnitude(velocity);
-
-    // More aggressive thresholds for better ZUPT detection
-    const accelThreshold = 1.5; // m/s² deviation from gravity (more lenient)
-    const gyroThreshold = 0.2; // rad/s (more lenient)
-    const velocityThreshold = 5.0; // m/s (much more lenient - if device seems still, trust it)
-
     const gravityMag = 9.81;
-    const accelDeviation = Math.abs(accelMag - gravityMag);
+    const tolerance = 0.05; // Acceptable deviation in m/s²
 
-    // Primary check: acceleration close to gravity (device at rest)
-    const isAccelStationary = accelDeviation < accelThreshold;
-    const isGyroStationary = gyroMag < gyroThreshold;
-
-    // If acceleration and gyro suggest stationary, ignore velocity (it might be drifted)
-    if (isAccelStationary && isGyroStationary) {
-        return true;
-    }
-
-    // Secondary check: all parameters within thresholds
-    return accelDeviation < accelThreshold &&
-        gyroMag < gyroThreshold &&
-        velMag < velocityThreshold;
+    // Only check if acceleration magnitude is (almost) exactly gravity
+    return Math.abs(accelMag - gravityMag) < tolerance;
 }
 
 // Initialize motion state
