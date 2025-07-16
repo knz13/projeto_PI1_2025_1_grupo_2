@@ -11,7 +11,7 @@ export const DadosController: EndpointController = {
         "dados-lancamento": new Pair(RequestType.GET, async (req: Request, res: Response) => {
 
             console.log("Fetching launch data...");
-            const { data: dadosLancamento, error: errorLancamento } = await SupabaseWrapper.get().from("tipo_lancamento").select("*,dados_lancamento(*)");
+            const { data: dadosLancamento, error: errorLancamento } = await SupabaseWrapper.get().from("dados_lancamento").select("*");
 
             if (errorLancamento) {
                 console.error("Erro ao buscar dados de lançamento:", errorLancamento);
@@ -26,58 +26,53 @@ export const DadosController: EndpointController = {
 
             console.log("Dados de lançamento encontrados:", JSON.stringify(dadosLancamento, null, 2));
 
-            var launchData:
-                {
-                    nome: string;
-                    target: string;
-                    data: DadosLancamento[]
-                }[]
-                = [];
+            // Group launches by tipo and transform data
+            const launchsByTipo: { [key: string]: any[] } = {};
 
-            dadosLancamento.forEach((tipoLancamento: any) => {
-                const dados = tipoLancamento.dados_lancamento;
-                if (dados && dados.length > 0) {
-                    // Transform each launch data into chart-compatible format
-                    const transformedData = dados.map((dadoLancamento: any) => {
-                        const parsed = parseDadosLancamento(dadoLancamento);
+            dadosLancamento.forEach((dadoLancamento: any) => {
+                const parsed = parseDadosLancamento(dadoLancamento);
 
-                        // Convert arrays to individual data points
-                        const dataPoints = [];
-                        const maxLength = Math.max(
-                            parsed.altura.length,
-                            parsed.aceleracao.length,
-                            parsed.velocidade.length,
-                            parsed.tempo.length,
-                            parsed.posicao.length
-                        );
+                if (!launchsByTipo[parsed.tipo]) {
+                    launchsByTipo[parsed.tipo] = [];
+                }
 
-                        for (let i = 0; i < maxLength; i++) {
-                            dataPoints.push({
-                                timestamp: parsed.created_at,
-                                relativeTime: parsed.tempo[i] || (i * 0.1), // Use actual time or fallback to 100ms intervals
-                                altitude: parsed.altura[i] || 0,
-                                acceleration: parsed.aceleracao[i] || 0,
-                                velocity: parsed.velocidade[i] || 0,
-                                position: parsed.posicao[i] || 0, // Use actual position data
-                                time: parsed.tempo[i] || (i * 0.1), // Add time field for charts
-                                id_lancamento: parsed.id_lancamento,
-                                angulo_lancamento: parsed.angulo_lancamento,
-                                peso: parsed.peso,
-                                pressao: parsed.pressao,
-                                tipo: parsed.tipo
-                            });
-                        }
+                // Convert arrays to individual data points for this launch
+                const dataPoints = [];
+                const maxLength = Math.max(
+                    parsed.altura.length,
+                    parsed.aceleracao.length,
+                    parsed.velocidade.length,
+                    parsed.tempo.length,
+                    parsed.posicao.length
+                );
 
-                        return dataPoints;
-                    }).flat(); // Flatten all data points from all launches of this type
-
-                    launchData.push({
-                        nome: tipoLancamento.nome,
-                        target: tipoLancamento.target,
-                        data: transformedData
+                for (let i = 0; i < maxLength; i++) {
+                    dataPoints.push({
+                        timestamp: parsed.created_at,
+                        relativeTime: parsed.tempo[i] || (i * 0.1), // Use actual time or fallback to 100ms intervals
+                        altitude: parsed.altura[i] || 0,
+                        acceleration: parsed.aceleracao[i] || 0,
+                        velocity: parsed.velocidade[i] || 0,
+                        position: parsed.posicao[i] || 0, // Use actual position data
+                        time: parsed.tempo[i] || (i * 0.1), // Add time field for charts
+                        id_lancamento: parsed.id_lancamento,
+                        angulo_lancamento: parsed.angulo_lancamento,
+                        peso: parsed.peso,
+                        pressao: parsed.pressao,
+                        tipo: parsed.tipo
                     });
                 }
+
+                // Add all data points from this launch to the group
+                launchsByTipo[parsed.tipo].push(...dataPoints);
             });
+
+            // Convert grouped data to expected format
+            const launchData = Object.keys(launchsByTipo).map(tipo => ({
+                nome: `Lançamento ${tipo}`,
+                target: tipo,
+                data: launchsByTipo[tipo]
+            }));
 
             console.log("Launch data:", launchData);
 

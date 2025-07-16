@@ -35,7 +35,7 @@ export default function LaunchCharts({ launchData }: LaunchChartsProps) {
   const timeBasedData = launchData.flatMap((launch, index) => {
     return launch.data.map((point: any, pointIndex: number) => ({
       ...point,
-      time: pointIndex * 0.1, // Convert to seconds (assuming 100ms intervals)
+      time: point.time || point.relativeTime || (pointIndex * 0.1), // Use actual time data
       launchName: point.tipo || launch.nome || `Launch ${index + 1}`,
       launchIndex: index,
     }))
@@ -56,7 +56,7 @@ export default function LaunchCharts({ launchData }: LaunchChartsProps) {
     const maxAltitude = Math.max(...data.map((p: any) => p.altitude || 0))
     const maxVelocity = Math.max(...data.map((p: any) => p.velocity || 0))
     const maxAcceleration = Math.max(...data.map((p: any) => p.acceleration || 0))
-    const flightTime = data.length * 0.1 // in seconds
+    const flightTime = Math.max(...data.map((p: any) => p.time || p.relativeTime || 0)) // Use actual max time
     const avgVelocity = data.reduce((sum: number, p: any) => sum + (p.velocity || 0), 0) / data.length
 
     return {
