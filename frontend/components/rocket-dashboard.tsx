@@ -15,7 +15,6 @@ import {
   ConnectedDevice,
   LaunchCommand
 } from "@/lib"
-import { Line } from 'react-chartjs-2'; // Add this import if using react-chartjs-2
 
 export default function RocketDashboard() {
   const [activeTab, setActiveTab] = useState("rocket")
@@ -29,10 +28,6 @@ export default function RocketDashboard() {
   const [telemetryData, setTelemetryData] = useState<any>(null)
   const [lastTelemetryMessage, setLastTelemetryMessage] = useState<{ timestamp: string, clientId: string, deviceId?: string } | null>(null)
   const [selectedDistance, setSelectedDistance] = useState(10); // NEW: launch type selector
-  const [selectedPressure, setSelectedPressure] = useState(30); // NEW: pressure input
-  const [showLiveGraph, setShowLiveGraph] = useState(false); // NEW: show live graph
-  const [liveData, setLiveData] = useState<any[]>([]); // NEW: store live telemetry
-  const [dataTab, setDataTab] = useState<'banco' | 'live'>('banco'); // NEW: tab for data
 
 
   // Fetch launch data
@@ -91,10 +86,6 @@ export default function RocketDashboard() {
           clientId: data.clientId,
           deviceId: data.deviceId
         });
-        // Store live data if live graph is active
-        if (showLiveGraph) {
-          setLiveData(prev => [...prev, data.data]);
-        }
       }
     });
 
@@ -120,7 +111,7 @@ export default function RocketDashboard() {
       setWsConnected(false);
       setConnectedDevices([]);
     };
-  }, [showLiveGraph]);
+  }, []);
 
   // Send launch command
   const handleLaunchCommand = (action: 'prepare' | 'launch' | 'abort' | 'reset') => {
@@ -129,22 +120,12 @@ export default function RocketDashboard() {
       return;
     }
 
-    if (action === 'launch') {
-      setShowLiveGraph(true);
-      setDataTab('live');
-      setLiveData([]); // Reset live data
-    }
-    if (action === 'reset' || action === 'abort') {
-      setShowLiveGraph(false);
-      setDataTab('banco');
-      setLiveData([]);
-    }
-
     const command: LaunchCommand = {
       action,
       parameters: {
         angle: 45, // Default values, could be made configurable
-        pressure: selectedPressure, // Use selected pressure
+        pressure: 30,
+        weight: 0.5,
         distance: selectedDistance // NEW: include selected distance
       }
     };
@@ -192,135 +173,6 @@ export default function RocketDashboard() {
             Dados do Foguete
           </TabsTrigger>
         </TabsList>
-
-        {/* NEW: Data tabs for banco/live */}
-        <div className="flex gap-2 mb-4">
-          <Button
-            variant={dataTab === 'banco' ? 'default' : 'outline'}
-            onClick={() => setDataTab('banco')}
-            className="text-xs"
-          >
-            Dados no Banco
-          </Button>
-          <Button
-            variant={dataTab === 'live' ? 'default' : 'outline'}
-            onClick={() => setDataTab('live')}
-            className="text-xs"
-            disabled={!showLiveGraph}
-          >
-            Dados Live
-          </Button>
-        </div>
-
-        {/* Data tab content */}
-        {dataTab === 'banco' && (
-          <TabsContent value="rocket" className="space-y-4 sm:space-y-6">
-            <Card className="max-w-6xl mx-auto">
-              <CardHeader className="bg-pink-50">
-                <CardTitle className="text-lg sm:text-xl text-pink-700">Análise de Lançamentos</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-4 sm:pt-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
-                  {launchData.map((launch, index) => (
-                    <Card key={index} className="border-pink-100">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-base sm:text-lg">
-                          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-                            <span>Lançamento {index + 1}</span>
-                            <span className="text-xs sm:text-sm font-normal text-gray-500">
-                              {index === 0 ? "10 metros" : index === 1 ? "20 metros" : "30 metros"}
-                            </span>
-                          </div>
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-2 text-sm">
-                          <div className="flex justify-between">
-                            <span className="text-gray-500">Data:</span>
-                            <span className="font-medium">{new Date(launch.data[0].timestamp).toLocaleDateString()}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-500">Altitude Máx:</span>
-                            <span className="font-medium">
-                              {Math.max(...launch.data.map((d: any) => d.altitude)).toFixed(1)} m
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-500">Posição Máx:</span>
-                            <span className="font-medium">
-                              {Math.max(...launch.data.map((d: any) => d.position)).toFixed(1)} m
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-500">Velocidade Máx:</span>
-                            <span className="font-medium">
-                              {Math.max(...launch.data.map((d: any) => d.velocity)).toFixed(1)} m/s
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-500">Aceleração Máx:</span>
-                            <span className="font-medium">
-                              {Math.max(...launch.data.map((d: any) => d.acceleration)).toFixed(1)} m/s²
-                            </span>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-
-                <LaunchCharts />
-              </CardContent>
-            </Card>
-          </TabsContent>
-        )}
-        {dataTab === 'live' && showLiveGraph && (
-          <TabsContent value="rocket" className="space-y-4 sm:space-y-6">
-            <Card className="max-w-6xl mx-auto">
-              <CardHeader className="bg-pink-50">
-                <CardTitle className="text-lg sm:text-xl text-pink-700">Dados Live do Lançamento</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-4 sm:pt-6">
-                {/* Simple live graph for altitude over time as an example */}
-                <div className="mb-6">
-                  <Line
-                    data={{
-                      labels: liveData.map((d, i) => i),
-                      datasets: [
-                        {
-                          label: 'Altitude (m)',
-                          data: liveData.map(d => d.position?.z ?? null),
-                          borderColor: 'rgba(236, 72, 153, 1)',
-                          backgroundColor: 'rgba(236, 72, 153, 0.2)',
-                          fill: true,
-                        },
-                        {
-                          label: 'Velocidade (m/s)',
-                          data: liveData.map(d => d.velocity?.z ?? null),
-                          borderColor: 'rgba(59, 130, 246, 1)',
-                          backgroundColor: 'rgba(59, 130, 246, 0.2)',
-                          fill: false,
-                        }
-                      ]
-                    }}
-                    options={{
-                      responsive: true,
-                      plugins: {
-                        legend: { display: true },
-                        title: { display: false }
-                      },
-                      scales: {
-                        x: { title: { display: true, text: 'Amostra' } },
-                        y: { title: { display: true, text: 'Valor' } }
-                      }
-                    }}
-                  />
-                </div>
-                {/* Optionally add more live data visualizations here */}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        )}
 
         {/* WebSocket and ESP32 Status Section */}
         <Card className="mb-4 sm:mb-6 border-pink-100">
@@ -670,21 +522,15 @@ export default function RocketDashboard() {
                   <option value={30}>30 metros</option>
                 </select>
               </label>
-              {/* NEW: Pressure input */}
-              <label className="flex items-center gap-2 text-sm font-medium">
-                Pressão (psi):
-                <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  step={1}
-                  value={selectedPressure}
-                  onChange={e => setSelectedPressure(Number(e.target.value))}
-                  className="border rounded px-2 py-1 w-20 text-sm focus:outline-pink-500"
-                />
-              </label>
             </div>
             <div className="grid grid-cols-2 sm:flex sm:justify-center gap-2 sm:gap-4">
+              <Button
+                onClick={() => handleLaunchCommand('prepare')}
+                disabled={!wsConnected || connectedDevices.filter(d => d.connectionType === ConnectionType.acionamento).length === 0}
+                className="bg-blue-500 hover:bg-blue-700 text-white text-sm h-10 sm:h-auto"
+              >
+                Preparar
+              </Button>
               <Button
                 onClick={() => handleLaunchCommand('launch')}
                 disabled={!wsConnected || connectedDevices.filter(d => d.connectionType === ConnectionType.acionamento).length === 0}
@@ -703,6 +549,17 @@ export default function RocketDashboard() {
               <Button
                 onClick={() => handleLaunchCommand('reset')}
                 disabled={!wsConnected || connectedDevices.filter(d => d.connectionType === ConnectionType.acionamento).length === 0}
+                variant="outline"
+                className="text-sm h-10 sm:h-auto"
+              >
+                Reset
+              </Button>
+            </div>
+            {/* NEW: Reset Acionamento Button */}
+            <div className="flex justify-center mt-4">
+              <Button
+                onClick={() => handleLaunchCommand('reset')}
+                disabled={!wsConnected || connectedDevices.filter(d => d.connectionType === ConnectionType.acionamento).length === 0}
                 variant="secondary"
                 className="text-sm h-10 sm:h-auto"
               >
@@ -711,6 +568,66 @@ export default function RocketDashboard() {
             </div>
           </CardContent>
         </Card>
+
+        <TabsContent value="rocket" className="space-y-4 sm:space-y-6">
+          <Card className="max-w-6xl mx-auto">
+            <CardHeader className="bg-pink-50">
+              <CardTitle className="text-lg sm:text-xl text-pink-700">Análise de Lançamentos</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-4 sm:pt-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
+                {launchData.map((launch, index) => (
+                  <Card key={index} className="border-pink-100">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base sm:text-lg">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                          <span>Lançamento {index + 1}</span>
+                          <span className="text-xs sm:text-sm font-normal text-gray-500">
+                            {index === 0 ? "10 metros" : index === 1 ? "20 metros" : "30 metros"}
+                          </span>
+                        </div>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Data:</span>
+                          <span className="font-medium">{new Date(launch.data[0].timestamp).toLocaleDateString()}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Altitude Máx:</span>
+                          <span className="font-medium">
+                            {Math.max(...launch.data.map((d: any) => d.altitude)).toFixed(1)} m
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Posição Máx:</span>
+                          <span className="font-medium">
+                            {Math.max(...launch.data.map((d: any) => d.position)).toFixed(1)} m
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Velocidade Máx:</span>
+                          <span className="font-medium">
+                            {Math.max(...launch.data.map((d: any) => d.velocity)).toFixed(1)} m/s
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Aceleração Máx:</span>
+                          <span className="font-medium">
+                            {Math.max(...launch.data.map((d: any) => d.acceleration)).toFixed(1)} m/s²
+                          </span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
+              <LaunchCharts />
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
     </div>
   )
