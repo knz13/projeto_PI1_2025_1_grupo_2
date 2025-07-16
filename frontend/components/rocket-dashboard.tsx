@@ -42,7 +42,7 @@ export default function RocketDashboard() {
   // Constants for recording logic
   const GRAVITY = 9.81 // m/s²
   const GRAVITY_TOLERANCE = 2.0 // ±2.0 m/s² tolerance
-  const MIN_RECORDING_TIME = 2000 // Minimum 2 seconds of recording
+  const MIN_RECORDING_TIME = 10000 // Minimum 5 seconds of recording
   const LANDING_DETECTION_SAMPLES = 5 // Need 5 consecutive samples near gravity to confirm landing
 
   // Counter for consecutive gravity samples
@@ -773,7 +773,7 @@ export default function RocketDashboard() {
                         </div>
                         <div className="flex flex-col">
                           <span className="text-gray-500">Pressão:</span>
-                          <span className="font-medium">{pressure}psi</span>
+                          <span className="font-medium">{pressure} bar</span>
                         </div>
                         <div className="flex flex-col">
                           <span className="text-gray-500">Ângulo:</span>
@@ -886,7 +886,7 @@ export default function RocketDashboard() {
                   onChange={e => setPressure(Number(e.target.value))}
                   className="border rounded px-2 py-1 text-sm focus:outline-pink-500 w-20"
                 />
-                <span className="text-xs text-gray-500">psi</span>
+                <span className="text-xs text-gray-500">bar</span>
               </label>
 
               <label className="flex items-center gap-2 text-sm font-medium">
