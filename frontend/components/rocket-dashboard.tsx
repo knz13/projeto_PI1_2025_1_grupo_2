@@ -8,6 +8,7 @@ import PinkBoomLogo from "@/components/pink-boom-logo"
 import { Environment } from "@/lib/environment"
 import { Button } from "./ui/button"
 import { Badge } from "./ui/badge"
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import {
   WSClient,
   WSMessageType,
@@ -15,7 +16,6 @@ import {
   ConnectedDevice,
   LaunchCommand
 } from "@/lib"
-import { Line } from 'react-chartjs-2'; // Add this import if using react-chartjs-2
 
 export default function RocketDashboard() {
   const [activeTab, setActiveTab] = useState("rocket")
@@ -281,40 +281,44 @@ export default function RocketDashboard() {
                 <CardTitle className="text-lg sm:text-xl text-pink-700">Dados Live do Lançamento</CardTitle>
               </CardHeader>
               <CardContent className="pt-4 sm:pt-6">
-                {/* Simple live graph for altitude over time as an example */}
+                {/* Simple live graph for altitude over time using Recharts */}
                 <div className="mb-6">
-                  <Line
-                    data={{
-                      labels: liveData.map((d, i) => i),
-                      datasets: [
-                        {
-                          label: 'Altitude (m)',
-                          data: liveData.map(d => d.position?.z ?? null),
-                          borderColor: 'rgba(236, 72, 153, 1)',
-                          backgroundColor: 'rgba(236, 72, 153, 0.2)',
-                          fill: true,
-                        },
-                        {
-                          label: 'Velocidade (m/s)',
-                          data: liveData.map(d => d.velocity?.z ?? null),
-                          borderColor: 'rgba(59, 130, 246, 1)',
-                          backgroundColor: 'rgba(59, 130, 246, 0.2)',
-                          fill: false,
-                        }
-                      ]
-                    }}
-                    options={{
-                      responsive: true,
-                      plugins: {
-                        legend: { display: true },
-                        title: { display: false }
-                      },
-                      scales: {
-                        x: { title: { display: true, text: 'Amostra' } },
-                        y: { title: { display: true, text: 'Valor' } }
-                      }
-                    }}
-                  />
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart
+                      data={liveData.map((d, i) => ({
+                        sample: i,
+                        altitude: d.position?.z ?? null,
+                        velocity: d.velocity?.z ?? null
+                      }))}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis 
+                        dataKey="sample" 
+                        label={{ value: 'Amostra', position: 'insideBottom', offset: -10 }}
+                      />
+                      <YAxis 
+                        label={{ value: 'Valor', angle: -90, position: 'insideLeft' }}
+                      />
+                      <Tooltip />
+                      <Legend />
+                      <Line 
+                        type="monotone" 
+                        dataKey="altitude" 
+                        stroke="rgba(236, 72, 153, 1)" 
+                        fill="rgba(236, 72, 153, 0.2)"
+                        name="Altitude (m)"
+                        strokeWidth={2}
+                      />
+                      <Line 
+                        type="monotone" 
+                        dataKey="velocity" 
+                        stroke="rgba(59, 130, 246, 1)" 
+                        fill="rgba(59, 130, 246, 0.2)"
+                        name="Velocidade (m/s)"
+                        strokeWidth={2}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
                 </div>
                 {/* Optionally add more live data visualizations here */}
               </CardContent>
