@@ -117,8 +117,8 @@ export function initializeMotionState(sampleRate: number = 100, outlierDetection
 
         accelBias: { x: 0, y: 0, z: 0 },
         gyroBias: { x: 0, y: 0, z: 0 },
-        accelScale: 9.81, // Default to m/s² (assuming raw values are in g)
-        gyroScale: Math.PI / 180, // Default to rad/s (assuming raw values are in deg/s)
+        accelScale: 9.81 / 16384, // For ±2g range: 16384 LSB/g
+        gyroScale: Math.PI / (180 * 131.0), // For ±250°/s range: 131.0 LSB/°/s
         scaleDetected: false,
 
         stationaryThreshold: 0.5, // m/s² threshold for stationary detection
