@@ -29,6 +29,92 @@ export default function RocketDashboard() {
   const [lastTelemetryMessage, setLastTelemetryMessage] = useState<{ timestamp: string, clientId: string, deviceId?: string } | null>(null)
   const [selectedDistance, setSelectedDistance] = useState(10); // NEW: launch type selector
 
+  // NEW: Recording state
+  const [isRecording, setIsRecording] = useState(false)
+  const [recordedData, setRecordedData] = useState<any[]>([])
+  const [recordingStartTime, setRecordingStartTime] = useState<number | null>(null)
+
+  // Constants for recording logic
+  const GRAVITY = 9.81 // m/s²
+  const GRAVITY_TOLERANCE = 2.0 // ±2.0 m/s² tolerance
+  const MIN_RECORDING_TIME = 2000 // Minimum 2 seconds of recording
+  const LANDING_DETECTION_SAMPLES = 5 // Need 5 consecutive samples near gravity to confirm landing
+
+  // Counter for consecutive gravity samples
+  const [consecutiveGravitySamples, setConsecutiveGravitySamples] = useState(0)
+
+  // Recording logic effect - monitor telemetry data for recording start/stop
+  useEffect(() => {
+    if (!telemetryData || !telemetryData.imu?.accel) return
+
+    const currentTime = Date.now()
+
+    // Calculate acceleration magnitude
+    const accelMagnitude = Math.sqrt(
+      Math.pow(telemetryData.imu.accel.x, 2) +
+      Math.pow(telemetryData.imu.accel.y, 2) +
+      Math.pow(telemetryData.imu.accel.z, 2)
+    )
+
+    // If recording, add data to recorded dataset
+    if (isRecording) {
+      const dataPoint = {
+        timestamp: currentTime,
+        relativeTime: recordingStartTime ? currentTime - recordingStartTime : 0,
+        telemetry: { ...telemetryData },
+        accelMagnitude
+      }
+
+      setRecordedData(prev => [...prev, dataPoint])
+
+      // Check if we should stop recording (landed)
+      const isNearGravity = Math.abs(accelMagnitude - GRAVITY) <= GRAVITY_TOLERANCE
+      const recordingDuration = recordingStartTime ? currentTime - recordingStartTime : 0
+
+      if (isNearGravity && recordingDuration > MIN_RECORDING_TIME) {
+        setConsecutiveGravitySamples(prev => prev + 1)
+      } else {
+        setConsecutiveGravitySamples(0)
+      }
+
+      // Stop recording if we have enough consecutive gravity samples
+      if (consecutiveGravitySamples >= LANDING_DETECTION_SAMPLES) {
+        console.log("Landing detected! Stopping recording.")
+        console.log("Recorded", recordedData.length + 1, "data points")
+        setIsRecording(false)
+        setConsecutiveGravitySamples(0)
+
+        // Optional: Save recorded data or trigger some action
+        // You could send this data to the backend here
+      }
+    }
+  }, [telemetryData, isRecording, recordingStartTime, consecutiveGravitySamples, recordedData.length])
+
+  // Function to start recording
+  const startRecording = () => {
+    console.log("Starting telemetry recording...")
+    setIsRecording(true)
+    setRecordedData([])
+    setRecordingStartTime(Date.now())
+    setConsecutiveGravitySamples(0)
+  }
+
+  // Function to stop recording manually
+  const stopRecording = () => {
+    console.log("Manually stopping telemetry recording...")
+    console.log("Recorded", recordedData.length, "data points")
+    setIsRecording(false)
+    setConsecutiveGravitySamples(0)
+  }
+
+  // Function to clear recorded data
+  const clearRecordedData = () => {
+    console.log("Clearing recorded data...")
+    setRecordedData([])
+    setRecordingStartTime(null)
+    setConsecutiveGravitySamples(0)
+  }
+
 
   // Fetch launch data
   useEffect(() => {
@@ -129,6 +215,11 @@ export default function RocketDashboard() {
         distance: selectedDistance // NEW: include selected distance
       }
     };
+
+    // Start recording when launching
+    if (action === 'launch') {
+      startRecording()
+    }
 
     // Send command to acionamento ESP32s
     const success = wsClient.sendMessage(WSMessageType.send_command_to_device, {
@@ -506,9 +597,90 @@ export default function RocketDashboard() {
         {/* Launch Control Section */}
         <Card className="mb-4 sm:mb-6 border-pink-100">
           <CardHeader className="bg-pink-50 py-3">
-            <CardTitle className="text-base sm:text-lg text-pink-700">Controle de Lançamento</CardTitle>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0">
+              <CardTitle className="text-base sm:text-lg text-pink-700">Controle de Lançamento</CardTitle>
+              {isRecording && (
+                <Badge variant="default" className="bg-red-500 text-white animate-pulse text-xs w-fit">
+                  🔴 GRAVANDO
+                </Badge>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="pt-4">
+            {/* Recording Status */}
+            {(isRecording || recordedData.length > 0) && (
+              <Card className="mb-4 border-red-100">
+                <CardContent className="pt-3">
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="flex flex-col">
+                      <span className="text-gray-500">Status:</span>
+                      <span className={`font-medium ${isRecording ? 'text-red-600' : 'text-green-600'}`}>
+                        {isRecording ? '🔴 Gravando...' : '✅ Gravação finalizada'}
+                      </span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-gray-500">Dados coletados:</span>
+                      <span className="font-medium">{recordedData.length} pontos</span>
+                    </div>
+                    {recordingStartTime && (
+                      <div className="flex flex-col">
+                        <span className="text-gray-500">Tempo de gravação:</span>
+                        <span className="font-medium">
+                          {isRecording
+                            ? `${((Date.now() - recordingStartTime) / 1000).toFixed(1)}s`
+                            : recordedData.length > 0
+                              ? `${((recordedData[recordedData.length - 1].relativeTime) / 1000).toFixed(1)}s`
+                              : '0s'
+                          }
+                        </span>
+                      </div>
+                    )}
+                    {telemetryData?.imu?.accel && (
+                      <div className="flex flex-col">
+                        <span className="text-gray-500">Aceleração atual:</span>
+                        <span className="font-medium">
+                          {Math.sqrt(
+                            Math.pow(telemetryData.imu.accel.x, 2) +
+                            Math.pow(telemetryData.imu.accel.y, 2) +
+                            Math.pow(telemetryData.imu.accel.z, 2)
+                          ).toFixed(2)} m/s²
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  {isRecording && consecutiveGravitySamples > 0 && (
+                    <div className="mt-2 text-xs text-orange-600">
+                      ⚠️ Detectando possível pouso ({consecutiveGravitySamples}/{LANDING_DETECTION_SAMPLES} amostras)
+                    </div>
+                  )}
+
+                  {/* Recording control buttons */}
+                  <div className="flex gap-2 mt-3">
+                    {isRecording && (
+                      <Button
+                        onClick={stopRecording}
+                        size="sm"
+                        variant="outline"
+                        className="text-xs h-7 px-2 bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100"
+                      >
+                        ⏹️ Parar Gravação
+                      </Button>
+                    )}
+                    {recordedData.length > 0 && !isRecording && (
+                      <Button
+                        onClick={clearRecordedData}
+                        size="sm"
+                        variant="outline"
+                        className="text-xs h-7 px-2 bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"
+                      >
+                        🗑️ Limpar Dados
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
               <label className="flex items-center gap-2 text-sm font-medium">
                 Distância:
@@ -533,10 +705,10 @@ export default function RocketDashboard() {
               </Button>
               <Button
                 onClick={() => handleLaunchCommand('launch')}
-                disabled={!wsConnected || connectedDevices.filter(d => d.connectionType === ConnectionType.acionamento).length === 0}
+                disabled={!wsConnected || connectedDevices.filter(d => d.connectionType === ConnectionType.acionamento).length === 0 || isRecording}
                 className="bg-pink-500 hover:bg-pink-700 text-white font-semibold text-sm h-10 sm:h-auto"
               >
-                🚀 Lançar!
+                {isRecording ? '🔴 Gravando...' : '🚀 Lançar!'}
               </Button>
               <Button
                 onClick={() => handleLaunchCommand('abort')}

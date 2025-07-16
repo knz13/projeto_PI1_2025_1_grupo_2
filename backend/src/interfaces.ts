@@ -122,6 +122,7 @@ export interface DadosLancamento {
     altura: number[];
     aceleracao: number[];
     velocidade: number[];
+    tipo: string;
 }
 
 export interface EndpointController {
@@ -145,5 +146,6 @@ export function parseDadosLancamento(json: any): DadosLancamento {
         velocidade: Array.isArray(json.velocidade)
             ? json.velocidade.map(Number)
             : JSON.parse(json.velocidade).map(Number),
+        tipo: String(json.tipo),
     };
 }
