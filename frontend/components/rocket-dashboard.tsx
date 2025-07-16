@@ -80,7 +80,7 @@ export default function RocketDashboard() {
     });
 
     client.onMessage(WSMessageType.esp_status, (data) => {
-      //console.log("ESP status update:", data);
+      console.log("ESP status update:", data);
       if (data.type === 'device_connected' || data.type === 'device_disconnected') {
         // Refresh device list
         client.getConnectedDevices();
