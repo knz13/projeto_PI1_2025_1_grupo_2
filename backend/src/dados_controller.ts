@@ -80,6 +80,14 @@ export const DadosController: EndpointController = {
                     });
                 }
 
+                // Validate tipo values
+                const validTipos = ["10m", "20m", "30m"];
+                if (!validTipos.includes(tipo)) {
+                    return res.status(400).json({
+                        error: "tipo must be one of: 10m, 20m, 30m"
+                    });
+                }
+
                 // Prepare data for insertion
                 const dadosParaInserir = {
                     angulo_lancamento,

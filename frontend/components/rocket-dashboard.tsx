@@ -43,6 +43,14 @@ export default function RocketDashboard() {
   // Counter for consecutive gravity samples
   const [consecutiveGravitySamples, setConsecutiveGravitySamples] = useState(0)
 
+  // Database sending state
+  const [isSendingToDatabase, setIsSendingToDatabase] = useState(false)
+  const [lastDatabaseResult, setLastDatabaseResult] = useState<{
+    success: boolean
+    message: string
+    timestamp: Date
+  } | null>(null)
+
   // Recording logic effect - monitor telemetry data for recording start/stop
   useEffect(() => {
     if (!telemetryData || !telemetryData.imu?.accel) return
@@ -81,11 +89,16 @@ export default function RocketDashboard() {
       if (consecutiveGravitySamples >= LANDING_DETECTION_SAMPLES) {
         console.log("Landing detected! Stopping recording.")
         console.log("Recorded", recordedData.length + 1, "data points")
+
+        // Include the current data point in the final dataset
+        const finalData = [...recordedData, dataPoint]
+
         setIsRecording(false)
         setConsecutiveGravitySamples(0)
 
-        // Optional: Save recorded data or trigger some action
-        // You could send this data to the backend here
+        // Send data to database
+        console.log("🚀 Sending flight data to database...")
+        sendDataToDatabase(finalData)
       }
     }
   }, [telemetryData, isRecording, recordingStartTime, consecutiveGravitySamples, recordedData.length])
@@ -105,6 +118,7 @@ export default function RocketDashboard() {
     console.log("Recorded", recordedData.length, "data points")
     setIsRecording(false)
     setConsecutiveGravitySamples(0)
+    setLastDatabaseResult(null)
   }
 
   // Function to clear recorded data
@@ -113,6 +127,87 @@ export default function RocketDashboard() {
     setRecordedData([])
     setRecordingStartTime(null)
     setConsecutiveGravitySamples(0)
+    setLastDatabaseResult(null)
+  }
+
+  // Function to send recorded data to database
+  const sendDataToDatabase = async (data: any[]) => {
+    if (data.length === 0) {
+      console.warn("No data to send to database")
+      return
+    }
+
+    setIsSendingToDatabase(true)
+    setLastDatabaseResult(null)
+
+    try {
+      console.log("Preparing to send", data.length, "data points to database...")
+
+      // Extract arrays from recorded data
+      const altura = data.map(point => point.telemetry.position?.z || 0)
+      const aceleracao = data.map(point => point.accelMagnitude || 0)
+      const velocidade = data.map(point => {
+        const vel = point.telemetry.velocity
+        if (vel) {
+          return Math.sqrt(vel.x * vel.x + vel.y * vel.y + vel.z * vel.z)
+        }
+        return 0
+      })
+
+      // Get launch parameters (use current selected distance and default values)
+      const payload = {
+        angulo_lancamento: 45, // Default angle - could be made configurable
+        peso: 0.5, // Default weight - could be made configurable  
+        pressao: 30, // Default pressure - could be made configurable
+        altura: altura,
+        aceleracao: aceleracao,
+        velocidade: velocidade,
+        tipo: `${selectedDistance}m` // Use selected distance as type
+      }
+
+      console.log("Sending payload to database:", {
+        ...payload,
+        altura: `${altura.length} points`,
+        aceleracao: `${aceleracao.length} points`,
+        velocidade: `${velocidade.length} points`
+      })
+
+      const response = await fetch(`${Environment.get_backend_url()}/dados/send-dados-lancamento`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        console.log("✅ Data successfully sent to database:", result)
+        setLastDatabaseResult({
+          success: true,
+          message: `Dados salvos com sucesso! ID: ${result.id}`,
+          timestamp: new Date()
+        })
+      } else {
+        const error = await response.json()
+        console.error("❌ Failed to send data to database:", error)
+        setLastDatabaseResult({
+          success: false,
+          message: `Erro ao salvar: ${error.error || 'Erro desconhecido'}`,
+          timestamp: new Date()
+        })
+      }
+
+    } catch (error) {
+      console.error("❌ Error sending data to database:", error)
+      setLastDatabaseResult({
+        success: false,
+        message: `Erro de conexão: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
+        timestamp: new Date()
+      })
+    } finally {
+      setIsSendingToDatabase(false)
+    }
   }
 
 
@@ -654,6 +749,27 @@ export default function RocketDashboard() {
                     </div>
                   )}
 
+                  {/* Database status */}
+                  {(isSendingToDatabase || lastDatabaseResult) && (
+                    <div className="mt-2 pt-2 border-t border-gray-200">
+                      {isSendingToDatabase && (
+                        <div className="text-xs text-blue-600 flex items-center gap-1">
+                          <div className="animate-spin rounded-full h-3 w-3 border-b border-blue-600"></div>
+                          📤 Enviando dados para o banco...
+                        </div>
+                      )}
+                      {lastDatabaseResult && !isSendingToDatabase && (
+                        <div className={`text-xs flex items-center gap-1 ${lastDatabaseResult.success ? 'text-green-600' : 'text-red-600'
+                          }`}>
+                          {lastDatabaseResult.success ? '✅' : '❌'} {lastDatabaseResult.message}
+                          <span className="text-gray-400 ml-1">
+                            ({lastDatabaseResult.timestamp.toLocaleTimeString('pt-BR')})
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Recording control buttons */}
                   <div className="flex gap-2 mt-3">
                     {isRecording && (
@@ -674,6 +790,17 @@ export default function RocketDashboard() {
                         className="text-xs h-7 px-2 bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"
                       >
                         🗑️ Limpar Dados
+                      </Button>
+                    )}
+                    {recordedData.length > 0 && !isRecording && (
+                      <Button
+                        onClick={() => sendDataToDatabase(recordedData)}
+                        disabled={isSendingToDatabase}
+                        size="sm"
+                        variant="outline"
+                        className="text-xs h-7 px-2 bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                      >
+                        {isSendingToDatabase ? '⏳' : '📤'} Enviar ao Banco
                       </Button>
                     )}
                   </div>
