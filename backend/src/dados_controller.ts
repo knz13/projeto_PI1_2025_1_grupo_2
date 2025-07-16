@@ -24,6 +24,8 @@ export const DadosController: EndpointController = {
 
             }
 
+            console.log("Dados de lançamento encontrados:", JSON.stringify(dadosLancamento, null, 2));
+
             var launchData:
                 {
                     nome: string;
