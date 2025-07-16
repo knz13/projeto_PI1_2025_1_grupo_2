@@ -937,7 +937,7 @@ export default function RocketDashboard() {
                 ))}
               </div>
 
-              <LaunchCharts />
+              <LaunchCharts launchData={launchData} />
             </CardContent>
           </Card>
         </TabsContent>

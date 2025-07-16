@@ -35,10 +35,41 @@ export const DadosController: EndpointController = {
             dadosLancamento.forEach((tipoLancamento: any) => {
                 const dados = tipoLancamento.dados_lancamento;
                 if (dados && dados.length > 0) {
+                    // Transform each launch data into chart-compatible format
+                    const transformedData = dados.map((dadoLancamento: any) => {
+                        const parsed = parseDadosLancamento(dadoLancamento);
+
+                        // Convert arrays to individual data points
+                        const dataPoints = [];
+                        const maxLength = Math.max(
+                            parsed.altura.length,
+                            parsed.aceleracao.length,
+                            parsed.velocidade.length
+                        );
+
+                        for (let i = 0; i < maxLength; i++) {
+                            dataPoints.push({
+                                timestamp: parsed.created_at,
+                                relativeTime: i * 100, // Assuming 100ms intervals
+                                altitude: parsed.altura[i] || 0,
+                                acceleration: parsed.aceleracao[i] || 0,
+                                velocity: parsed.velocidade[i] || 0,
+                                position: parsed.altura[i] || 0, // Use altitude as position
+                                id_lancamento: parsed.id_lancamento,
+                                angulo_lancamento: parsed.angulo_lancamento,
+                                peso: parsed.peso,
+                                pressao: parsed.pressao,
+                                tipo: parsed.tipo
+                            });
+                        }
+
+                        return dataPoints;
+                    }).flat(); // Flatten all data points from all launches of this type
+
                     launchData.push({
                         nome: tipoLancamento.nome,
                         target: tipoLancamento.target,
-                        data: dados.map(parseDadosLancamento)
+                        data: transformedData
                     });
                 }
             });

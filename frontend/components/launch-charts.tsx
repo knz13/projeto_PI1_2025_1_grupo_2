@@ -1,26 +1,50 @@
 "use client"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Label } from "recharts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import launchData from "@/lib/data.json"
 
 // Colors for each launch
 const COLORS = ["#ff4d94", "#d6409f", "#9c27b0"]
 
-export default function LaunchCharts() {
+interface LaunchChartsProps {
+  launchData: any[]
+}
+
+export default function LaunchCharts({ launchData }: LaunchChartsProps) {
+  // Handle empty data case
+  if (!launchData || launchData.length === 0) {
+    return (
+      <div className="space-y-8 max-w-6xl mx-auto">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-center text-gray-500">
+              📊 Gráficos de Análise
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center py-8">
+              <p className="text-gray-500">Nenhum dado de lançamento disponível</p>
+              <p className="text-sm text-gray-400 mt-2">Os gráficos aparecerão quando dados de lançamento forem salvos no banco de dados</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   // Combine all data points for position vs altitude chart
   const positionAltitudeData = launchData.flatMap((launch, index) => {
-    return launch.data.map((point) => ({
+    return launch.data.map((point: any) => ({
       ...point,
-      launchName: `LAUNCH ${index + 1} (${index === 0 ? "10m" : index === 1 ? "20m" : "30m"})`,
+      launchName: `LAUNCH ${index + 1} (${launch.nome || `${(index + 1) * 10}m`})`,
       launchIndex: index,
     }))
   })
 
   // Combine all data points for velocity vs acceleration chart
   const velocityAccelerationData = launchData.flatMap((launch, index) => {
-    return launch.data.map((point) => ({
+    return launch.data.map((point: any) => ({
       ...point,
-      launchName: `Lançamento ${index + 1} (${index === 0 ? "10m" : index === 1 ? "20m" : "30m"})`,
+      launchName: `Lançamento ${index + 1} (${launch.nome || `${(index + 1) * 10}m`})`,
       launchIndex: index,
     }))
   })
@@ -44,8 +68,8 @@ export default function LaunchCharts() {
                 </YAxis>
                 <Tooltip
                   formatter={(value, name) => [
-                  `${Number.parseFloat(value as string).toFixed(2)}`,
-                  name === "altitude" ? "Altitude (m)" : "Posição (m)",
+                    `${Number.parseFloat(value as string).toFixed(2)}`,
+                    name === "altitude" ? "Altitude (m)" : "Posição (m)",
                   ]}
                   labelFormatter={(label) => `Posição: ${Number.parseFloat(label).toFixed(2)} m`}
                 />
@@ -56,7 +80,7 @@ export default function LaunchCharts() {
                     type="monotone"
                     dataKey="altitude"
                     data={positionAltitudeData.filter((d) => d.launchIndex === index)}
-                    name={`Lançamento ${index + 1} (${index === 0 ? "10m" : index === 1 ? "20m" : "30m"})`}
+                    name={`Lançamento ${index + 1} (${launchData[index]?.nome || `${(index + 1) * 10}m`})`}
                     stroke={COLORS[index]}
                     strokeWidth={2}
                     dot={{ r: 4, strokeWidth: 1 }}
@@ -91,14 +115,14 @@ export default function LaunchCharts() {
                   ]}
                   labelFormatter={(label) => `Velocidade: ${Number.parseFloat(label).toFixed(2)} m/s`}
                 />
-                <Legend wrapperStyle={{ paddingTop: 20 }}/>
+                <Legend wrapperStyle={{ paddingTop: 20 }} />
                 {launchData.map((_, index) => (
-                  <Line 
+                  <Line
                     key={index}
                     type="monotone"
                     dataKey="acceleration"
                     data={velocityAccelerationData.filter((d) => d.launchIndex === index)}
-                    name={`Lançamento ${index + 1} (${index === 0 ? "10m" : index === 1 ? "20m" : "30m"})`}
+                    name={`Lançamento ${index + 1} (${launchData[index]?.nome || `${(index + 1) * 10}m`})`}
                     stroke={COLORS[index]}
                     strokeWidth={2}
                     dot={{ r: 4, strokeWidth: 1 }}
