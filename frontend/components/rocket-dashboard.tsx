@@ -43,6 +43,9 @@ export default function RocketDashboard() {
   // Counter for consecutive gravity samples
   const [consecutiveGravitySamples, setConsecutiveGravitySamples] = useState(0)
 
+  // Track last processed telemetry to prevent duplicate processing
+  const [lastProcessedTimestamp, setLastProcessedTimestamp] = useState<number | null>(null)
+
   // Database sending state
   const [isSendingToDatabase, setIsSendingToDatabase] = useState(false)
   const [lastDatabaseResult, setLastDatabaseResult] = useState<{
@@ -57,6 +60,12 @@ export default function RocketDashboard() {
 
     const currentTime = Date.now()
 
+    // Prevent processing the same telemetry data multiple times
+    const telemetryTimestamp = telemetryData.timestamp || currentTime
+    if (lastProcessedTimestamp === telemetryTimestamp) {
+      return
+    }
+
     // Calculate acceleration magnitude
     const accelMagnitude = Math.sqrt(
       Math.pow(telemetryData.imu.accel.x, 2) +
@@ -66,6 +75,8 @@ export default function RocketDashboard() {
 
     // If recording, add data to recorded dataset
     if (isRecording) {
+      setLastProcessedTimestamp(telemetryTimestamp)
+
       const dataPoint = {
         timestamp: currentTime,
         relativeTime: recordingStartTime ? currentTime - recordingStartTime : 0,
@@ -101,7 +112,7 @@ export default function RocketDashboard() {
         sendDataToDatabase(finalData)
       }
     }
-  }, [telemetryData, isRecording, recordingStartTime, consecutiveGravitySamples, recordedData.length])
+  }, [telemetryData, isRecording, recordingStartTime, consecutiveGravitySamples])
 
   // Function to start recording
   const startRecording = () => {
@@ -110,6 +121,7 @@ export default function RocketDashboard() {
     setRecordedData([])
     setRecordingStartTime(Date.now())
     setConsecutiveGravitySamples(0)
+    setLastProcessedTimestamp(null)
   }
 
   // Function to stop recording manually
@@ -119,6 +131,7 @@ export default function RocketDashboard() {
     setIsRecording(false)
     setConsecutiveGravitySamples(0)
     setLastDatabaseResult(null)
+    setLastProcessedTimestamp(null)
   }
 
   // Function to clear recorded data
@@ -128,6 +141,7 @@ export default function RocketDashboard() {
     setRecordingStartTime(null)
     setConsecutiveGravitySamples(0)
     setLastDatabaseResult(null)
+    setLastProcessedTimestamp(null)
   }
 
   // Function to send recorded data to database
