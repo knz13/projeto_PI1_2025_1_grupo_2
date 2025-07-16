@@ -172,6 +172,14 @@ export default function RocketDashboard() {
         }
         return 0
       })
+      const tempo = data.map(point => point.relativeTime / 1000) // Convert milliseconds to seconds
+      const posicao = data.map(point => {
+        const pos = point.telemetry.position
+        if (pos) {
+          return Math.sqrt(pos.x * pos.x + pos.y * pos.y) // Horizontal distance from origin
+        }
+        return 0
+      })
 
       // Get launch parameters (use current selected distance and default values)
       const payload = {
@@ -181,6 +189,8 @@ export default function RocketDashboard() {
         altura: altura,
         aceleracao: aceleracao,
         velocidade: velocidade,
+        tempo: tempo,
+        posicao: posicao,
         tipo: `${selectedDistance}m` // Use selected distance as type
       }
 
@@ -188,7 +198,9 @@ export default function RocketDashboard() {
         ...payload,
         altura: `${altura.length} points`,
         aceleracao: `${aceleracao.length} points`,
-        velocidade: `${velocidade.length} points`
+        velocidade: `${velocidade.length} points`,
+        tempo: `${tempo.length} points`,
+        posicao: `${posicao.length} points`
       })
 
       const response = await fetch(`${Environment.get_backend_url()}/dados/send-dados-lancamento`, {

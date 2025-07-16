@@ -122,6 +122,8 @@ export interface DadosLancamento {
     altura: number[];
     aceleracao: number[];
     velocidade: number[];
+    tempo: number[]; // Time array in seconds
+    posicao: number[]; // Position array in meters
     tipo: string;
 }
 
@@ -146,6 +148,12 @@ export function parseDadosLancamento(json: any): DadosLancamento {
         velocidade: Array.isArray(json.velocidade)
             ? json.velocidade.map(Number)
             : JSON.parse(json.velocidade).map(Number),
+        tempo: Array.isArray(json.tempo)
+            ? json.tempo.map(Number)
+            : JSON.parse(json.tempo).map(Number),
+        posicao: Array.isArray(json.posicao)
+            ? json.posicao.map(Number)
+            : JSON.parse(json.posicao).map(Number),
         tipo: String(json.tipo),
     };
 }

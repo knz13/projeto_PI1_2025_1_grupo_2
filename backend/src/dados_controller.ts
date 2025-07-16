@@ -44,17 +44,20 @@ export const DadosController: EndpointController = {
                         const maxLength = Math.max(
                             parsed.altura.length,
                             parsed.aceleracao.length,
-                            parsed.velocidade.length
+                            parsed.velocidade.length,
+                            parsed.tempo.length,
+                            parsed.posicao.length
                         );
 
                         for (let i = 0; i < maxLength; i++) {
                             dataPoints.push({
                                 timestamp: parsed.created_at,
-                                relativeTime: i * 100, // Assuming 100ms intervals
+                                relativeTime: parsed.tempo[i] || (i * 0.1), // Use actual time or fallback to 100ms intervals
                                 altitude: parsed.altura[i] || 0,
                                 acceleration: parsed.aceleracao[i] || 0,
                                 velocity: parsed.velocidade[i] || 0,
-                                position: parsed.altura[i] || 0, // Use altitude as position
+                                position: parsed.posicao[i] || 0, // Use actual position data
+                                time: parsed.tempo[i] || (i * 0.1), // Add time field for charts
                                 id_lancamento: parsed.id_lancamento,
                                 angulo_lancamento: parsed.angulo_lancamento,
                                 peso: parsed.peso,
@@ -84,11 +87,11 @@ export const DadosController: EndpointController = {
 
             try {
                 // Validate request body
-                const { angulo_lancamento, peso, pressao, altura, aceleracao, velocidade, tipo } = req.body;
+                const { angulo_lancamento, peso, pressao, altura, aceleracao, velocidade, tempo, posicao, tipo } = req.body;
 
-                if (!angulo_lancamento || !peso || !pressao || !altura || !aceleracao || !velocidade || !tipo) {
+                if (!angulo_lancamento || !peso || !pressao || !altura || !aceleracao || !velocidade || !tempo || !posicao || !tipo) {
                     return res.status(400).json({
-                        error: "Missing required fields: angulo_lancamento, peso, pressao, altura, aceleracao, velocidade, tipo"
+                        error: "Missing required fields: angulo_lancamento, peso, pressao, altura, aceleracao, velocidade, tempo, posicao, tipo"
                     });
                 }
 
@@ -99,9 +102,9 @@ export const DadosController: EndpointController = {
                     });
                 }
 
-                if (!Array.isArray(altura) || !Array.isArray(aceleracao) || !Array.isArray(velocidade)) {
+                if (!Array.isArray(altura) || !Array.isArray(aceleracao) || !Array.isArray(velocidade) || !Array.isArray(tempo) || !Array.isArray(posicao)) {
                     return res.status(400).json({
-                        error: "altura, aceleracao, and velocidade must be arrays"
+                        error: "altura, aceleracao, velocidade, tempo, and posicao must be arrays"
                     });
                 }
 
@@ -127,6 +130,8 @@ export const DadosController: EndpointController = {
                     altura: JSON.stringify(altura), // Store as JSON string in database
                     aceleracao: JSON.stringify(aceleracao),
                     velocidade: JSON.stringify(velocidade),
+                    tempo: JSON.stringify(tempo),
+                    posicao: JSON.stringify(posicao),
                     tipo,
                     created_at: new Date().toISOString()
                 };
