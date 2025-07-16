@@ -29,6 +29,11 @@ export default function RocketDashboard() {
   const [lastTelemetryMessage, setLastTelemetryMessage] = useState<{ timestamp: string, clientId: string, deviceId?: string } | null>(null)
   const [selectedDistance, setSelectedDistance] = useState(10); // NEW: launch type selector
 
+  // Launch parameters
+  const [peso, setPeso] = useState(0.5) // Weight in kg
+  const [pressure, setPressure] = useState(30) // Pressure in psi
+  const [angle, setAngle] = useState(45) // Launch angle in degrees
+
   // NEW: Recording state
   const [isRecording, setIsRecording] = useState(false)
   const [recordedData, setRecordedData] = useState<any[]>([])
@@ -170,9 +175,9 @@ export default function RocketDashboard() {
 
       // Get launch parameters (use current selected distance and default values)
       const payload = {
-        angulo_lancamento: 45, // Default angle - could be made configurable
-        peso: 0.5, // Default weight - could be made configurable  
-        pressao: 30, // Default pressure - could be made configurable
+        angulo_lancamento: angle, // Use state value
+        peso: peso, // Use state value
+        pressao: pressure, // Use state value
         altura: altura,
         aceleracao: aceleracao,
         velocidade: velocidade,
@@ -318,9 +323,9 @@ export default function RocketDashboard() {
     const command: LaunchCommand = {
       action,
       parameters: {
-        angle: 45, // Default values, could be made configurable
-        pressure: 30,
-        weight: 0.5,
+        angle: angle, // Use state value
+        pressure: pressure,
+        weight: peso,
         distance: selectedDistance // NEW: include selected distance
       }
     };
@@ -756,6 +761,26 @@ export default function RocketDashboard() {
                         </span>
                       </div>
                     )}
+                    {(isRecording || recordedData.length > 0) && (
+                      <>
+                        <div className="flex flex-col">
+                          <span className="text-gray-500">Distância:</span>
+                          <span className="font-medium">{selectedDistance}m</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-gray-500">Peso:</span>
+                          <span className="font-medium">{peso}kg</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-gray-500">Pressão:</span>
+                          <span className="font-medium">{pressure}psi</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-gray-500">Ângulo:</span>
+                          <span className="font-medium">{angle}°</span>
+                        </div>
+                      </>
+                    )}
                   </div>
                   {isRecording && consecutiveGravitySamples > 0 && (
                     <div className="mt-2 text-xs text-orange-600">
@@ -834,6 +859,48 @@ export default function RocketDashboard() {
                   <option value={20}>20 metros</option>
                   <option value={30}>30 metros</option>
                 </select>
+              </label>
+
+              <label className="flex items-center gap-2 text-sm font-medium">
+                Peso:
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0.1"
+                  max="5"
+                  value={peso}
+                  onChange={e => setPeso(Number(e.target.value))}
+                  className="border rounded px-2 py-1 text-sm focus:outline-pink-500 w-20"
+                />
+                <span className="text-xs text-gray-500">kg</span>
+              </label>
+
+              <label className="flex items-center gap-2 text-sm font-medium">
+                Pressão:
+                <input
+                  type="number"
+                  step="1"
+                  min="10"
+                  max="50"
+                  value={pressure}
+                  onChange={e => setPressure(Number(e.target.value))}
+                  className="border rounded px-2 py-1 text-sm focus:outline-pink-500 w-20"
+                />
+                <span className="text-xs text-gray-500">psi</span>
+              </label>
+
+              <label className="flex items-center gap-2 text-sm font-medium">
+                Ângulo:
+                <input
+                  type="number"
+                  step="1"
+                  min="0"
+                  max="90"
+                  value={angle}
+                  onChange={e => setAngle(Number(e.target.value))}
+                  className="border rounded px-2 py-1 text-sm focus:outline-pink-500 w-20"
+                />
+                <span className="text-xs text-gray-500">°</span>
               </label>
             </div>
             <div className="grid grid-cols-2 sm:flex sm:justify-center gap-2 sm:gap-4">
