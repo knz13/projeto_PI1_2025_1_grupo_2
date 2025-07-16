@@ -1,5 +1,5 @@
-// Motion Integration Module
-// Provides advanced sensor fusion, acceleration integration, and motion tracking
+// Motion Integration and Sensor Fusion Module
+// Handles advanced IMU data processing, orientation estimation, and motion integration
 
 export interface Vector3 {
     x: number;
@@ -14,409 +14,803 @@ export interface Quaternion {
     z: number;
 }
 
+export interface GPSData {
+    lat: number;
+    lon: number;
+    alt: number;
+    sats: number;
+}
+
 export interface IMUData {
     accel: Vector3;
     gyro: Vector3;
     timestamp: number;
 }
 
-export interface GPSData {
-    lat: number;
-    lon: number;
-    alt: number;
-    sats: number;
-    speed?: number;
-    heading?: number;
-    accuracy?: number;
-    timestamp?: number;
-}
-
 export interface SensorData {
     timestamp: number;
     imu: IMUData;
-    gps?: GPSData;
+    gps?: GPSData; // GPS can be absent
 }
 
 export interface MotionState {
-    // Integration state
-    velocity: Vector3;
     position: Vector3;
+    velocity: Vector3;
     orientation: Quaternion;
-
-    // GPS state
-    lastGpsPosition: Vector3 | null;
-    gpsVelocity: Vector3;
-    gpsAvailable: boolean;
-    gpsFixQuality: number;
-
-    // Fusion state
-    fusionEnabled: boolean;
-    positionConfidence: number;
-
-    // Timing
     lastTimestamp: number;
-    sampleRate: number;
+    isInitialized: boolean;
 
-    // Calibration and filtering
-    accelBias: Vector3;
-    gyroBias: Vector3;
+    // Filter states
+    accelFilter: LowPassFilter;
+    gyroFilter: LowPassFilter;
+    velocityHistory: Vector3[];
+    accelHistory: Vector3[];  // Add acceleration history for outlier detection
+
+    // ZUPT state
+    zuptThreshold: number;
+    zuptCounter: number;
+    zuptRequiredFrames: number;
+
+    // Madgwick filter state
+    madgwick: MadgwickFilter;
+
+    // IMU calibration
     accelScale: number;
     gyroScale: number;
     scaleDetected: boolean;
 
-    // Stationary detection
-    stationaryThreshold: number;
-    stationaryCount: number;
-    isStationary: boolean;
+    // GPS fusion state
+    gpsPosition: Vector3 | null;
+    gpsVelocity: Vector3;
+    lastGPSPosition: Vector3 | null;
+    lastGPSTimestamp: number;
+    gpsAvailable: boolean;
+    gpsFixQuality: number; // Number of satellites
+    referenceLatLon: { lat: number; lon: number } | null; // Reference point for local coordinates
 
-    // Outlier detection
-    outlierDetectionEnabled: boolean;
-    lastAccelMagnitude: number;
+    // Sensor fusion
+    positionConfidence: { imu: number; gps: number }; // 0-1 confidence in each source
+    fusionEnabled: boolean;
 
-    // Integration buffers
-    accelHistory: Vector3[];
-    gyroHistory: Vector3[];
-    velocityHistory: Vector3[];
-
-    // Noise reduction
-    lowPassAlpha: number;
-    filteredAccel: Vector3;
-    filteredGyro: Vector3;
+    // Debug settings
+    enableOutlierDetection: boolean;
 }
 
-export interface IntegrationResult {
-    velocity: Vector3;
+// Low-pass filter for noise reduction
+class LowPassFilter {
+    private alpha: number;
+    private filteredValue: Vector3;
+    private isInitialized: boolean = false;
+
+    constructor(cutoffFreq: number, sampleRate: number) {
+        // Calculate alpha from cutoff frequency
+        const rc = 1.0 / (2.0 * Math.PI * cutoffFreq);
+        const dt = 1.0 / sampleRate;
+        this.alpha = dt / (rc + dt);
+        this.filteredValue = { x: 0, y: 0, z: 0 };
+    }
+
+    filter(input: Vector3): Vector3 {
+        if (!this.isInitialized) {
+            this.filteredValue = { ...input };
+            this.isInitialized = true;
+            return this.filteredValue;
+        }
+
+        this.filteredValue.x = this.alpha * input.x + (1 - this.alpha) * this.filteredValue.x;
+        this.filteredValue.y = this.alpha * input.y + (1 - this.alpha) * this.filteredValue.y;
+        this.filteredValue.z = this.alpha * input.z + (1 - this.alpha) * this.filteredValue.z;
+
+        return { ...this.filteredValue };
+    }
+
+    reset() {
+        this.isInitialized = false;
+        this.filteredValue = { x: 0, y: 0, z: 0 };
+    }
+}
+
+// Madgwick AHRS filter for orientation estimation
+class MadgwickFilter {
+    private q: Quaternion = { w: 1, x: 0, y: 0, z: 0 };
+    private beta: number;
+    private sampleRate: number;
+
+    constructor(beta: number = 0.1, sampleRate: number = 100) {
+        this.beta = beta;
+        this.sampleRate = sampleRate;
+    }
+
+    update(accel: Vector3, gyro: Vector3): Quaternion {
+        const dt = 1.0 / this.sampleRate;
+
+        // Normalize accelerometer measurement
+        const accelNorm = this.normalize(accel);
+        if (!accelNorm) return this.q;
+
+        // Extract the gravity vector from quaternion
+        const qw = this.q.w, qx = this.q.x, qy = this.q.y, qz = this.q.z;
+        const gx = 2 * (qx * qz - qw * qy);
+        const gy = 2 * (qw * qx + qy * qz);
+        const gz = qw * qw - qx * qx - qy * qy + qz * qz;
+
+        // Error is sum of cross product between estimated direction and measured direction
+        const ex = (accelNorm.y * gz - accelNorm.z * gy);
+        const ey = (accelNorm.z * gx - accelNorm.x * gz);
+        const ez = (accelNorm.x * gy - accelNorm.y * gx);
+
+        // Apply feedback terms
+        const gx_feedback = gyro.x + this.beta * ex;
+        const gy_feedback = gyro.y + this.beta * ey;
+        const gz_feedback = gyro.z + this.beta * ez;
+
+        // Integrate rate of change of quaternion
+        const qDot_w = 0.5 * (-qx * gx_feedback - qy * gy_feedback - qz * gz_feedback);
+        const qDot_x = 0.5 * (qw * gx_feedback + qy * gz_feedback - qz * gy_feedback);
+        const qDot_y = 0.5 * (qw * gy_feedback - qx * gz_feedback + qz * gx_feedback);
+        const qDot_z = 0.5 * (qw * gz_feedback + qx * gy_feedback - qy * gx_feedback);
+
+        // Integrate to yield quaternion
+        this.q.w += qDot_w * dt;
+        this.q.x += qDot_x * dt;
+        this.q.y += qDot_y * dt;
+        this.q.z += qDot_z * dt;
+
+        // Normalize quaternion
+        this.q = this.normalizeQuaternion(this.q);
+
+        return { ...this.q };
+    }
+
+    private normalize(v: Vector3): Vector3 | null {
+        const norm = Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
+        if (norm < 1e-6) return null;
+        return { x: v.x / norm, y: v.y / norm, z: v.z / norm };
+    }
+
+    private normalizeQuaternion(q: Quaternion): Quaternion {
+        const norm = Math.sqrt(q.w * q.w + q.x * q.x + q.y * q.y + q.z * q.z);
+        return { w: q.w / norm, x: q.x / norm, y: q.y / norm, z: q.z / norm };
+    }
+
+    getOrientation(): Quaternion {
+        return { ...this.q };
+    }
+
+    reset() {
+        this.q = { w: 1, x: 0, y: 0, z: 0 };
+    }
+}
+
+// Utility functions for vector operations
+export const VectorUtils = {
+    magnitude: (v: Vector3): number => {
+        return Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
+    },
+
+    normalize: (v: Vector3): Vector3 | null => {
+        const mag = VectorUtils.magnitude(v);
+        if (mag < 1e-6) return null;
+        return { x: v.x / mag, y: v.y / mag, z: v.z / mag };
+    },
+
+    subtract: (a: Vector3, b: Vector3): Vector3 => {
+        return { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z };
+    },
+
+    add: (a: Vector3, b: Vector3): Vector3 => {
+        return { x: a.x + b.x, y: a.y + b.y, z: a.z + b.z };
+    },
+
+    scale: (v: Vector3, scalar: number): Vector3 => {
+        return { x: v.x * scalar, y: v.y * scalar, z: v.z * scalar };
+    },
+
+    clamp: (v: Vector3, min: number, max: number): Vector3 => {
+        return {
+            x: Math.max(min, Math.min(max, v.x)),
+            y: Math.max(min, Math.min(max, v.y)),
+            z: Math.max(min, Math.min(max, v.z))
+        };
+    }
+};
+
+// Quaternion utilities for orientation handling
+export const QuaternionUtils = {
+    // Rotate a vector by a quaternion
+    rotateVector: (v: Vector3, q: Quaternion): Vector3 => {
+        // v' = q * v * q^-1
+        const qx = q.x, qy = q.y, qz = q.z, qw = q.w;
+        const vx = v.x, vy = v.y, vz = v.z;
+
+        // First part: q * v
+        const t_w = -qx * vx - qy * vy - qz * vz;
+        const t_x = qw * vx + qy * vz - qz * vy;
+        const t_y = qw * vy + qz * vx - qx * vz;
+        const t_z = qw * vz + qx * vy - qy * vx;
+
+        // Second part: (q * v) * q^-1 = (q * v) * q_conjugate
+        return {
+            x: -t_w * -qx + t_x * qw + t_y * -qz - t_z * -qy,
+            y: -t_w * -qy + t_y * qw + t_z * -qx - t_x * -qz,
+            z: -t_w * -qz + t_z * qw + t_x * -qy - t_y * -qx
+        };
+    },
+
+    // Get gravity vector in body frame
+    getGravityVector: (q: Quaternion): Vector3 => {
+        // Gravity is [0, 0, -g] in world frame, rotate to body frame
+        const worldGravity: Vector3 = { x: 0, y: 0, z: -9.81 };
+        // We want the inverse rotation (world to body), so use conjugate
+        const qConj: Quaternion = { w: q.w, x: -q.x, y: -q.y, z: -q.z };
+        return QuaternionUtils.rotateVector(worldGravity, qConj);
+    }
+};
+
+// Outlier detection and rejection
+export function detectOutliers(newAccel: Vector3, history: Vector3[], windowSize: number = 15, threshold: number = 8.0, enableDetection: boolean = true): boolean {
+    // Optionally disable outlier detection for debugging
+    if (!enableDetection) return false;
+
+    // Need minimum samples to establish baseline - be more lenient
+    if (history.length < Math.max(5, windowSize / 3)) return false;
+
+    // Calculate median of recent measurements
+    const recentHistory = history.slice(-windowSize);
+    const magnitudes = recentHistory.map(v => VectorUtils.magnitude(v));
+    magnitudes.sort((a, b) => a - b);
+
+    const median = magnitudes[Math.floor(magnitudes.length / 2)];
+    const newMagnitude = VectorUtils.magnitude(newAccel);
+
+    // Calculate MAD (Median Absolute Deviation)
+    const mad = magnitudes.map(m => Math.abs(m - median));
+    mad.sort((a, b) => a - b);
+    const madValue = mad[Math.floor(mad.length / 2)];
+
+    // Avoid division by zero - if MAD is too small, use standard deviation approach
+    if (madValue < 0.1) {
+        const mean = magnitudes.reduce((sum, val) => sum + val, 0) / magnitudes.length;
+        const variance = magnitudes.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / magnitudes.length;
+        const stdDev = Math.sqrt(variance);
+
+        if (stdDev < 0.1) return false; // Very consistent data, no outliers
+
+        const zScore = Math.abs(newMagnitude - mean) / stdDev;
+        return zScore > threshold;
+    }
+
+    // Modified Z-score using MAD
+    const modifiedZScore = Math.abs(newMagnitude - median) / (madValue * 1.4826); // 1.4826 is constant for normal distribution
+
+    // More lenient for typical IMU data ranges (usually 0-20 m/s² range)
+    // Only reject if both statistical AND absolute thresholds are exceeded
+    return modifiedZScore > threshold && Math.abs(newMagnitude - median) > 50.0;
+}
+
+export function detectZeroVelocity(accel: Vector3, gyro: Vector3, velocity: Vector3): boolean {
+    const accelMag = VectorUtils.magnitude(accel);
+    const gravityMag = 9.81;
+    const tolerance = 0.05; // Acceptable deviation in m/s²
+
+    // Only check if acceleration magnitude is (almost) exactly gravity
+    return Math.abs(accelMag - gravityMag) < tolerance;
+}
+
+// Initialize motion state
+export function initializeMotionState(sampleRate: number = 100, enableOutlierDetection: boolean = false): MotionState {
+    return {
+        position: { x: 0, y: 0, z: 0 },
+        velocity: { x: 0, y: 0, z: 0 },
+        orientation: { w: 1, x: 0, y: 0, z: 0 },
+        lastTimestamp: 0,
+        isInitialized: false,
+
+        // Initialize filters - optimized for rocket movement at 100 Hz
+        accelFilter: new LowPassFilter(25, sampleRate), // 25 Hz cutoff - higher for rocket dynamics
+        gyroFilter: new LowPassFilter(30, sampleRate),  // 30 Hz cutoff - higher for rotation tracking
+        velocityHistory: [],
+        accelHistory: [],
+
+        // ZUPT parameters - optimized for 100 Hz (10ms intervals)
+        zuptThreshold: 0.1,
+        zuptCounter: 0,
+        zuptRequiredFrames: 20, // 200ms at 100 Hz - more conservative for rocket
+
+        // Madgwick filter - optimized for 100 Hz
+        madgwick: new MadgwickFilter(0.05, sampleRate), // Lower beta for more stable orientation at high freq
+
+        // IMU calibration - will be auto-detected
+        accelScale: 9.81 / 16384, // Default to ±2g range
+        gyroScale: Math.PI / (180 * 131.0), // Default to ±250°/s range
+        scaleDetected: false,
+
+        // GPS fusion state
+        gpsPosition: null,
+        gpsVelocity: { x: 0, y: 0, z: 0 },
+        lastGPSPosition: null,
+        lastGPSTimestamp: 0,
+        gpsAvailable: false,
+        gpsFixQuality: 0,
+        referenceLatLon: null,
+
+        // Sensor fusion
+        positionConfidence: { imu: 0.5, gps: 0.5 },
+        fusionEnabled: true,
+
+        // Debug settings - disabled by default for now
+        enableOutlierDetection
+    };
+}
+
+// Enhanced motion integration with GPS fusion
+export function integrateSensorData(sensorData: SensorData, state: MotionState): {
     position: Vector3;
+    velocity: Vector3;
     orientation: Quaternion;
     isStationary: boolean;
     gpsPosition: Vector3 | null;
     gpsVelocity: Vector3;
     gpsAvailable: boolean;
     fusedPosition: Vector3;
-}
-
-/**
- * Initialize motion state with default parameters
- */
-export function initializeMotionState(sampleRate: number = 100, outlierDetection: boolean = false): MotionState {
-    return {
-        velocity: { x: 0, y: 0, z: 0 },
-        position: { x: 0, y: 0, z: 0 },
-        orientation: { w: 1, x: 0, y: 0, z: 0 },
-
-        lastGpsPosition: null,
-        gpsVelocity: { x: 0, y: 0, z: 0 },
-        gpsAvailable: false,
-        gpsFixQuality: 0,
-
-        fusionEnabled: true,
-        positionConfidence: 0.5,
-
-        lastTimestamp: 0,
-        sampleRate,
-
-        accelBias: { x: 0, y: 0, z: 0 },
-        gyroBias: { x: 0, y: 0, z: 0 },
-        accelScale: 9.81, // Default to m/s² (assuming raw values are in g)
-        gyroScale: Math.PI / 180, // Default to rad/s (assuming raw values are in deg/s)
-        scaleDetected: false,
-
-        stationaryThreshold: 0.5, // m/s² threshold for stationary detection
-        stationaryCount: 0,
-        isStationary: false,
-
-        outlierDetectionEnabled: outlierDetection,
-        lastAccelMagnitude: 9.81,
-
-        accelHistory: [],
-        gyroHistory: [],
-        velocityHistory: [],
-
-        lowPassAlpha: 0.8, // Low-pass filter coefficient
-        filteredAccel: { x: 0, y: 0, z: 0 },
-        filteredGyro: { x: 0, y: 0, z: 0 }
-    };
-}
-
-/**
- * Reset motion state to initial values
- */
-export function resetMotionState(state: MotionState): void {
-    state.velocity = { x: 0, y: 0, z: 0 };
-    state.position = { x: 0, y: 0, z: 0 };
-    state.orientation = { w: 1, x: 0, y: 0, z: 0 };
-    state.lastGpsPosition = null;
-    state.gpsVelocity = { x: 0, y: 0, z: 0 };
-    state.stationaryCount = 0;
-    state.isStationary = false;
-    state.lastTimestamp = 0;
-    state.accelHistory = [];
-    state.gyroHistory = [];
-    state.velocityHistory = [];
-    state.filteredAccel = { x: 0, y: 0, z: 0 };
-    state.filteredGyro = { x: 0, y: 0, z: 0 };
-
-    console.log('[Motion] Motion state reset');
-}
-
-/**
- * Vector utility functions
- */
-function vectorMagnitude(v: Vector3): number {
-    return Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
-}
-
-function vectorSubtract(a: Vector3, b: Vector3): Vector3 {
-    return { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z };
-}
-
-function vectorAdd(a: Vector3, b: Vector3): Vector3 {
-    return { x: a.x + b.x, y: a.y + b.y, z: a.z + b.z };
-}
-
-function vectorScale(v: Vector3, scale: number): Vector3 {
-    return { x: v.x * scale, y: v.y * scale, z: v.z * scale };
-}
-
-function vectorLerp(a: Vector3, b: Vector3, t: number): Vector3 {
-    return {
-        x: a.x + (b.x - a.x) * t,
-        y: a.y + (b.y - a.y) * t,
-        z: a.z + (b.z - a.z) * t
-    };
-}
-
-/**
- * Apply low-pass filter to reduce noise
- */
-function applyLowPassFilter(current: Vector3, previous: Vector3, alpha: number): Vector3 {
-    return {
-        x: alpha * current.x + (1 - alpha) * previous.x,
-        y: alpha * current.y + (1 - alpha) * previous.y,
-        z: alpha * current.z + (1 - alpha) * previous.z
-    };
-}
-
-/**
- * Detect and remove gravity bias from acceleration
- */
-function removeGravityBias(accel: Vector3, orientation: Quaternion): Vector3 {
-    // Simple gravity removal assuming Z-up orientation
-    // In a more sophisticated implementation, we'd use the orientation quaternion
-    // to properly transform gravity vector
-    const gravityMagnitude = 9.81;
-    const accelMagnitude = vectorMagnitude(accel);
-
-    // If acceleration is close to gravity magnitude, assume it's mostly gravity
-    if (Math.abs(accelMagnitude - gravityMagnitude) < 1.0) {
-        return { x: accel.x, y: accel.y, z: accel.z - gravityMagnitude };
-    }
-
-    return accel;
-}
-
-/**
- * Detect if device is stationary based on acceleration patterns
- */
-function detectStationary(accel: Vector3, velocity: Vector3, state: MotionState): boolean {
-    const accelMagnitude = vectorMagnitude(accel);
-    const velocityMagnitude = vectorMagnitude(velocity);
-
-    // Check if acceleration is close to gravity (device at rest)
-    const isLowAccel = Math.abs(accelMagnitude - 9.81) < state.stationaryThreshold;
-    const isLowVelocity = velocityMagnitude < 0.1; // 0.1 m/s threshold
-
-    if (isLowAccel && isLowVelocity) {
-        state.stationaryCount++;
-    } else {
-        state.stationaryCount = 0;
-    }
-
-    // Consider stationary if conditions met for multiple samples
-    const requiredStationaryCount = Math.max(5, state.sampleRate / 10); // At least 0.1 seconds
-    return state.stationaryCount >= requiredStationaryCount;
-}
-
-/**
- * Convert GPS coordinates to local position (simplified)
- */
-function gpsToLocalPosition(gps: GPSData, referenceGps: GPSData | null): Vector3 {
-    if (!referenceGps) {
-        return { x: 0, y: 0, z: gps.alt || 0 };
-    }
-
-    // Simple conversion using Earth radius (more sophisticated implementations would use proper projections)
-    const earthRadius = 6371000; // meters
-    const latDiff = (gps.lat - referenceGps.lat) * Math.PI / 180;
-    const lonDiff = (gps.lon - referenceGps.lon) * Math.PI / 180;
-
-    const x = lonDiff * earthRadius * Math.cos(referenceGps.lat * Math.PI / 180);
-    const y = latDiff * earthRadius;
-    const z = (gps.alt || 0) - (referenceGps.alt || 0);
-
-    return { x, y, z };
-}
-
-/**
- * Update orientation using gyroscope data (simplified integration)
- */
-function updateOrientation(gyro: Vector3, orientation: Quaternion, dt: number): Quaternion {
-    // Simple quaternion integration
-    const gyroMagnitude = vectorMagnitude(gyro);
-    if (gyroMagnitude < 0.001) return orientation; // Too small to matter
-
-    const angle = gyroMagnitude * dt;
-    const axis = vectorScale(gyro, 1 / gyroMagnitude);
-
-    // Create rotation quaternion
-    const s = Math.sin(angle / 2);
-    const rotQ: Quaternion = {
-        w: Math.cos(angle / 2),
-        x: axis.x * s,
-        y: axis.y * s,
-        z: axis.z * s
-    };
-
-    // Multiply quaternions
-    return {
-        w: orientation.w * rotQ.w - orientation.x * rotQ.x - orientation.y * rotQ.y - orientation.z * rotQ.z,
-        x: orientation.w * rotQ.x + orientation.x * rotQ.w + orientation.y * rotQ.z - orientation.z * rotQ.y,
-        y: orientation.w * rotQ.y - orientation.x * rotQ.z + orientation.y * rotQ.w + orientation.z * rotQ.x,
-        z: orientation.w * rotQ.z + orientation.x * rotQ.y - orientation.y * rotQ.x + orientation.z * rotQ.w
-    };
-}
-
-/**
- * Main sensor data integration function with GPS fusion
- */
-export function integrateSensorData(sensorData: SensorData, state: MotionState): IntegrationResult {
-    const dt = state.lastTimestamp > 0 ? (sensorData.timestamp - state.lastTimestamp) / 1000.0 : 0;
-    state.lastTimestamp = sensorData.timestamp;
-
-    if (dt <= 0 || dt > 1.0) { // Skip invalid or too large time steps
-        return {
-            velocity: state.velocity,
-            position: state.position,
-            orientation: state.orientation,
-            isStationary: state.isStationary,
-            gpsPosition: state.lastGpsPosition,
-            gpsVelocity: state.gpsVelocity,
-            gpsAvailable: state.gpsAvailable,
-            fusedPosition: state.position
-        };
-    }
-
-    // Apply scaling to raw sensor data
-    const scaledAccel: Vector3 = {
-        x: sensorData.imu.accel.x * state.accelScale,
-        y: sensorData.imu.accel.y * state.accelScale,
-        z: sensorData.imu.accel.z * state.accelScale
-    };
-
-    const scaledGyro: Vector3 = {
-        x: sensorData.imu.gyro.x * state.gyroScale,
-        y: sensorData.imu.gyro.y * state.gyroScale,
-        z: sensorData.imu.gyro.z * state.gyroScale
-    };
-
-    // Apply low-pass filtering
-    state.filteredAccel = applyLowPassFilter(scaledAccel, state.filteredAccel, state.lowPassAlpha);
-    state.filteredGyro = applyLowPassFilter(scaledGyro, state.filteredGyro, state.lowPassAlpha);
-
-    // Remove gravity bias
-    const linearAccel = removeGravityBias(state.filteredAccel, state.orientation);
-
-    // Update orientation
-    state.orientation = updateOrientation(state.filteredGyro, state.orientation, dt);
-
-    // Detect stationary state
-    state.isStationary = detectStationary(state.filteredAccel, state.velocity, state);
-
-    // If stationary, gradually reduce velocity to zero
-    if (state.isStationary) {
-        state.velocity = vectorScale(state.velocity, 0.95); // Damping factor
-    } else {
-        // Integrate acceleration to get velocity
-        const deltaV = vectorScale(linearAccel, dt);
-        state.velocity = vectorAdd(state.velocity, deltaV);
-    }
-
-    // Integrate velocity to get position
-    const deltaP = vectorScale(state.velocity, dt);
-    state.position = vectorAdd(state.position, deltaP);
+} {
+    // First process IMU data
+    const imuResult = integrateMotion(sensorData.imu, state);
 
     // Process GPS data if available
-    let gpsPosition: Vector3 | null = null;
-    let fusedPosition = state.position;
-
+    let gpsProcessed = false;
     if (sensorData.gps) {
-        state.gpsAvailable = true;
-        state.gpsFixQuality = sensorData.gps.sats || 0;
-
-        // Convert GPS to local coordinates
-        if (!state.lastGpsPosition) {
-            // First GPS reading - set as reference
-            state.lastGpsPosition = { x: 0, y: 0, z: sensorData.gps.alt || 0 };
-            gpsPosition = state.lastGpsPosition;
-        } else {
-            // Convert current GPS to local position
-            const referenceGps = {
-                lat: 0, lon: 0, alt: state.lastGpsPosition.z, sats: 0
-            };
-            gpsPosition = gpsToLocalPosition(sensorData.gps, referenceGps);
-        }
-
-        // Calculate GPS velocity (if we have speed)
-        if (sensorData.gps.speed !== undefined && sensorData.gps.heading !== undefined) {
-            const headingRad = sensorData.gps.heading * Math.PI / 180;
-            state.gpsVelocity = {
-                x: sensorData.gps.speed * Math.cos(headingRad),
-                y: sensorData.gps.speed * Math.sin(headingRad),
-                z: 0
-            };
-        }
-
-        // Fuse GPS with IMU position based on accuracy and confidence
-        if (state.fusionEnabled && gpsPosition && sensorData.gps.accuracy) {
-            const gpsWeight = Math.max(0.1, Math.min(0.9, 10.0 / sensorData.gps.accuracy));
-            fusedPosition = vectorLerp(state.position, gpsPosition, gpsWeight);
-
-            // Update confidence based on GPS accuracy
-            state.positionConfidence = Math.min(1.0, state.positionConfidence + 0.1);
-        }
-
-        state.lastGpsPosition = gpsPosition;
-    } else {
-        state.gpsAvailable = false;
-        // Decrease confidence when GPS is not available
-        state.positionConfidence = Math.max(0.1, state.positionConfidence - 0.05);
+        gpsProcessed = processGPSData(sensorData.gps, state, sensorData.timestamp);
     }
 
+    // Fuse position estimates
+    const fusedPosition = fusePositionEstimates(state);
+
     return {
-        velocity: state.velocity,
-        position: state.position,
-        orientation: state.orientation,
-        isStationary: state.isStationary,
-        gpsPosition,
+        ...imuResult,
+        gpsPosition: state.gpsPosition,
         gpsVelocity: state.gpsVelocity,
         gpsAvailable: state.gpsAvailable,
         fusedPosition
     };
 }
 
-/**
- * Legacy integration function (for backward compatibility)
- */
-export function integrateMotion(accel: Vector3, dt: number, state: MotionState): { velocity: Vector3; position: Vector3 } {
-    // Simple double integration
-    const deltaV = vectorScale(accel, dt);
-    state.velocity = vectorAdd(state.velocity, deltaV);
+// Main motion integration function with all improvements (IMU only)
+export function integrateMotion(imuData: IMUData, state: MotionState): {
+    position: Vector3;
+    velocity: Vector3;
+    orientation: Quaternion;
+    isStationary: boolean;
+} {
+    if (!state.isInitialized) {
+        state.lastTimestamp = imuData.timestamp;
+        state.isInitialized = true;
+        return {
+            position: state.position,
+            velocity: state.velocity,
+            orientation: state.orientation,
+            isStationary: false
+        };
+    }
 
-    const deltaP = vectorScale(state.velocity, dt);
-    state.position = vectorAdd(state.position, deltaP);
+    // Calculate time delta in seconds
+    const deltaTime = (imuData.timestamp - state.lastTimestamp) / 1000.0;
+
+    // Skip if time delta is invalid
+    if (deltaTime > 1.0 || deltaTime <= 0) {
+        console.log(`[Motion] Invalid deltaTime: ${deltaTime}s, skipping frame`);
+        state.lastTimestamp = imuData.timestamp;
+        return {
+            position: state.position,
+            velocity: state.velocity,
+            orientation: state.orientation,
+            isStationary: false
+        };
+    }
+
+    // Log timing if significantly different from expected 10ms (100 Hz)
+    const expectedDelta = 0.01; // 10ms
+    if (Math.abs(deltaTime - expectedDelta) > 0.005) { // More than 5ms deviation
+        console.log(`[Motion] Timing deviation: ${(deltaTime * 1000).toFixed(1)}ms (expected: 10ms)`);
+    }
+
+    // Auto-detect IMU scale on first few samples if not already detected
+    if (!state.scaleDetected && state.accelHistory.length < 10) {
+        const rawMag = VectorUtils.magnitude(imuData.accel);
+        const detected = detectAccelRange(rawMag);
+        state.accelScale = 9.81 / detected.scale;
+        state.scaleDetected = true;
+        console.log(`[Motion] Auto-detected accelerometer: ${detected.range} (${detected.scale} LSB/g)`);
+        console.log(`[Motion] Scale factor: ${state.accelScale.toFixed(6)} m/s²/LSB`);
+        console.log(`[Motion] Raw magnitude: ${rawMag.toFixed(0)} LSB → ${(rawMag * state.accelScale).toFixed(2)} m/s²`);
+
+        // Verify conversion is reasonable (should be near gravity when stationary)
+        const convertedMag = rawMag * state.accelScale;
+        if (Math.abs(convertedMag - 9.81) > 2.0) {
+            console.warn(`[Motion] WARNING: Converted magnitude ${convertedMag.toFixed(2)} m/s² seems incorrect (expected ~9.81 m/s²)`);
+        }
+    }
+
+    // Convert raw IMU data to m/s² and rad/s using detected/configured scales
+    const rawAccel: Vector3 = {
+        x: imuData.accel.x * state.accelScale,
+        y: imuData.accel.y * state.accelScale,
+        z: imuData.accel.z * state.accelScale
+    };
+
+    const rawGyro: Vector3 = {
+        x: imuData.gyro.x * state.gyroScale,
+        y: imuData.gyro.y * state.gyroScale,
+        z: imuData.gyro.z * state.gyroScale
+    };
+
+    // Debug: Log both raw and converted values occasionally
+    const shouldLogDebug = state.accelHistory.length % 100 === 0; // Every 1 second at 100Hz
+    if (shouldLogDebug) {
+        const rawMag = VectorUtils.magnitude(imuData.accel);
+        const convertedMag = VectorUtils.magnitude(rawAccel);
+        const velMag = VectorUtils.magnitude(state.velocity);
+        console.log(`[Motion] Raw accel magnitude: ${rawMag.toFixed(0)} LSB, Converted: ${convertedMag.toFixed(2)} m/s²`);
+        console.log(`[Motion] Current velocity magnitude: ${velMag.toFixed(2)} m/s`);
+        console.log(`[Motion] Current scales: Accel=${(9.81 / state.accelScale).toFixed(0)} LSB/g, Gyro=${(180 * state.gyroScale / Math.PI).toFixed(1)} LSB/°/s`);
+
+        // Emergency velocity reset if values are unreasonable (device appears stationary but velocity is high)
+        if (velMag > 30 && Math.abs(convertedMag - 9.81) < 2.0) {
+            console.warn(`[Motion] EMERGENCY: Resetting velocity from ${velMag.toFixed(2)} m/s (device appears stationary)`);
+            state.velocity = { x: 0, y: 0, z: 0 };
+        }
+    }
+
+    // Update acceleration history for outlier detection
+    state.accelHistory.push({ ...rawAccel });
+    const MAX_ACCEL_HISTORY = 30; // 300ms at 100 Hz
+    if (state.accelHistory.length > MAX_ACCEL_HISTORY) {
+        state.accelHistory.shift();
+    }
+
+    // Outlier detection and rejection (currently disabled for debugging)
+    const OUTLIER_WINDOW_SIZE = 20; // 200ms at 100 Hz for better statistical reliability
+    const isOutlier = detectOutliers(rawAccel, state.accelHistory, OUTLIER_WINDOW_SIZE, 8.0, state.enableOutlierDetection);
+    if (isOutlier) {
+        const accelMag = VectorUtils.magnitude(rawAccel);
+        console.log('[Motion] Outlier detected, skipping frame.');
+        console.log('[Motion] Accel magnitude:', accelMag.toFixed(2), 'History size:', state.accelHistory.length);
+
+        // Still update timestamp to prevent time delta issues
+        state.lastTimestamp = imuData.timestamp;
+        return {
+            position: state.position,
+            velocity: state.velocity,
+            orientation: state.orientation,
+            isStationary: false
+        };
+    }
+
+    // Apply low-pass filtering to reduce noise
+    const filteredAccel = state.accelFilter.filter(rawAccel);
+    const filteredGyro = state.gyroFilter.filter(rawGyro);
+
+    // Update orientation using Madgwick filter
+    state.orientation = state.madgwick.update(filteredAccel, filteredGyro);
+
+    // Remove gravity using estimated orientation
+    const gravityInBody = QuaternionUtils.getGravityVector(state.orientation);
+    const linearAccel = VectorUtils.subtract(filteredAccel, gravityInBody);
+
+    // Zero Velocity Update (ZUPT) detection
+    const isStationary = detectZeroVelocity(filteredAccel, filteredGyro, state.velocity);
+
+    if (isStationary) {
+        state.zuptCounter++;
+        if (state.zuptCounter >= state.zuptRequiredFrames) {
+            // Apply ZUPT - reset velocity and clamp small movements
+            const oldVelMag = VectorUtils.magnitude(state.velocity);
+            state.velocity = { x: 0, y: 0, z: 0 };
+            if (oldVelMag > 0.1) {
+                console.log(`[Motion] ZUPT applied - velocity reset from ${oldVelMag.toFixed(2)} m/s to 0`);
+            }
+            state.zuptCounter = 0;
+        }
+    } else {
+        state.zuptCounter = 0;
+    }
+
+    // Debug ZUPT status
+    if (shouldLogDebug) {
+        console.log(`[Motion] ZUPT status: ${isStationary ? 'stationary' : 'moving'}, counter: ${state.zuptCounter}/${state.zuptRequiredFrames}`);
+    }
+
+    // Integrate acceleration to velocity if not in ZUPT mode
+    if (!isStationary || state.zuptCounter < state.zuptRequiredFrames) {
+        state.velocity.x += linearAccel.x * deltaTime;
+        state.velocity.y += linearAccel.y * deltaTime;
+        state.velocity.z += linearAccel.z * deltaTime;
+
+        // Apply velocity deadband to prevent drift
+        const deadband = 0.02; // m/s
+        if (Math.abs(state.velocity.x) < deadband) state.velocity.x = 0;
+        if (Math.abs(state.velocity.y) < deadband) state.velocity.y = 0;
+        if (Math.abs(state.velocity.z) < deadband) state.velocity.z = 0;
+
+        // Clamp velocity to reasonable limits (more conservative for debugging)
+        const maxVelocity = 100; // Increased limit but still reasonable for rocket
+        state.velocity = VectorUtils.clamp(state.velocity, -maxVelocity, maxVelocity);
+
+        // Debug: Log when clamping occurs
+        const velMag = VectorUtils.magnitude(state.velocity);
+        if (velMag >= maxVelocity * 0.9) { // Log when approaching limit
+            console.log(`[Motion] Velocity approaching limit: ${velMag.toFixed(2)} m/s (limit: ${maxVelocity})`);
+        }
+    }
+
+    // Integrate velocity to position
+    state.position.x += state.velocity.x * deltaTime + 0.5 * linearAccel.x * deltaTime * deltaTime;
+    state.position.y += state.velocity.y * deltaTime + 0.5 * linearAccel.y * deltaTime * deltaTime;
+    state.position.z += state.velocity.z * deltaTime + 0.5 * linearAccel.z * deltaTime * deltaTime;
+
+    // Prevent negative altitude (assuming Z is up)
+    if (state.position.z < 0) {
+        state.position.z = 0;
+        if (state.velocity.z < 0) state.velocity.z = 0;
+    }
+
+    // Update velocity history for ZUPT and analysis
+    state.velocityHistory.push({ ...state.velocity });
+    const MAX_VELOCITY_HISTORY = 50; // 500ms at 100 Hz
+    if (state.velocityHistory.length > MAX_VELOCITY_HISTORY) {
+        state.velocityHistory.shift();
+    }
+
+    // Update timestamp
+    state.lastTimestamp = imuData.timestamp;
 
     return {
-        velocity: state.velocity,
-        position: state.position
+        position: { ...state.position },
+        velocity: { ...state.velocity },
+        orientation: { ...state.orientation },
+        isStationary: isStationary && state.zuptCounter >= state.zuptRequiredFrames
     };
 }
+
+// Reset motion state (for launch resets)
+export function resetMotionState(state: MotionState): void {
+    state.position = { x: 0, y: 0, z: 0 };
+    state.velocity = { x: 0, y: 0, z: 0 };
+    state.orientation = { w: 1, x: 0, y: 0, z: 0 };
+    state.isInitialized = false;
+    state.zuptCounter = 0;
+    state.velocityHistory = [];
+    state.accelHistory = [];
+
+    // Reset filters
+    state.accelFilter.reset();
+    state.gyroFilter.reset();
+    state.madgwick.reset();
+
+    // Reset GPS state (but keep reference point for consistency)
+    // state.gpsPosition = null; // Keep last GPS position as reference
+    state.gpsVelocity = { x: 0, y: 0, z: 0 };
+    // Keep: lastGPSPosition, lastGPSTimestamp, gpsAvailable, gpsFixQuality, referenceLatLon
+
+    // Reset fusion confidence
+    state.positionConfidence = { imu: 0.5, gps: 0.5 };
+
+    // Keep outlier detection and fusion settings as is
+    console.log('[Motion] Motion state reset (GPS reference preserved)');
+}
+
+// Utility function to enable/disable outlier detection during runtime
+export function setOutlierDetection(state: MotionState, enabled: boolean): void {
+    state.enableOutlierDetection = enabled;
+    console.log(`[Motion] Outlier detection ${enabled ? 'enabled' : 'disabled'}`);
+}
+
+// Utility function to get motion state summary for debugging
+export function getMotionStateSummary(state: MotionState): string {
+    const posMag = VectorUtils.magnitude(state.position);
+    const velMag = VectorUtils.magnitude(state.velocity);
+    const accelHistorySize = state.accelHistory.length;
+    const velHistorySize = state.velocityHistory.length;
+
+    return `Pos: ${posMag.toFixed(2)}m, Vel: ${velMag.toFixed(2)}m/s, ` +
+        `ZUPT counter: ${state.zuptCounter}, Histories: A=${accelHistorySize}, V=${velHistorySize}`;
+}
+
+// MPU6050 scale factors for different ranges
+export const MPU6050_SCALES = {
+    ACCEL: {
+        RANGE_2G: 16384,   // LSB/g for ±2g range
+        RANGE_4G: 8192,    // LSB/g for ±4g range  
+        RANGE_8G: 4096,    // LSB/g for ±8g range
+        RANGE_16G: 2048    // LSB/g for ±16g range
+    },
+    GYRO: {
+        RANGE_250: 131.0,  // LSB/°/s for ±250°/s range
+        RANGE_500: 65.5,   // LSB/°/s for ±500°/s range
+        RANGE_1000: 32.8,  // LSB/°/s for ±1000°/s range
+        RANGE_2000: 16.4   // LSB/°/s for ±2000°/s range
+    }
+};
+
+// Detect MPU6050 accelerometer range based on stationary readings
+export function detectAccelRange(rawAccelMagnitude: number): { range: string, scale: number } {
+    // Calculate differences for each range
+    const ranges = [
+        { name: '±2g', expected: MPU6050_SCALES.ACCEL.RANGE_2G, scale: MPU6050_SCALES.ACCEL.RANGE_2G },
+        { name: '±4g', expected: MPU6050_SCALES.ACCEL.RANGE_4G, scale: MPU6050_SCALES.ACCEL.RANGE_4G },
+        { name: '±8g', expected: MPU6050_SCALES.ACCEL.RANGE_8G, scale: MPU6050_SCALES.ACCEL.RANGE_8G },
+        { name: '±16g', expected: MPU6050_SCALES.ACCEL.RANGE_16G, scale: MPU6050_SCALES.ACCEL.RANGE_16G }
+    ];
+
+    // Find closest match
+    let bestMatch = ranges[0];
+    let minDiff = Math.abs(rawAccelMagnitude - bestMatch.expected);
+
+    for (const range of ranges) {
+        const diff = Math.abs(rawAccelMagnitude - range.expected);
+        if (diff < minDiff) {
+            minDiff = diff;
+            bestMatch = range;
+        }
+    }
+
+    return { range: bestMatch.name, scale: bestMatch.scale };
+}
+
+// Convert raw IMU values to physical units
+export function convertIMUData(rawAccel: Vector3, rawGyro: Vector3, accelScale?: number, gyroScale?: number): {
+    accel: Vector3;
+    gyro: Vector3;
+    accelScale: number;
+    gyroScale: number;
+} {
+    // Auto-detect scale if not provided
+    if (!accelScale) {
+        const rawMag = VectorUtils.magnitude(rawAccel);
+        const detected = detectAccelRange(rawMag);
+        accelScale = 9.81 / detected.scale;
+        console.log(`[Motion] Auto-detected accelerometer range: ${detected.range} (scale: ${detected.scale} LSB/g)`);
+    }
+
+    if (!gyroScale) {
+        gyroScale = Math.PI / (180 * MPU6050_SCALES.GYRO.RANGE_250); // Default to ±250°/s
+    }
+
+    return {
+        accel: {
+            x: rawAccel.x * accelScale,
+            y: rawAccel.y * accelScale,
+            z: rawAccel.z * accelScale
+        },
+        gyro: {
+            x: rawGyro.x * gyroScale,
+            y: rawGyro.y * gyroScale,
+            z: rawGyro.z * gyroScale
+        },
+        accelScale,
+        gyroScale
+    };
+}
+
+// GPS utility functions
+export const GPSUtils = {
+    // Convert GPS coordinates to local ENU (East-North-Up) coordinates in meters
+    toLocalCoordinates: (lat: number, lon: number, alt: number, refLat: number, refLon: number): Vector3 => {
+        const R = 6378137; // Earth radius in meters
+
+        const dLat = (lat - refLat) * Math.PI / 180;
+        const dLon = (lon - refLon) * Math.PI / 180;
+
+        const x = dLon * R * Math.cos(refLat * Math.PI / 180); // East
+        const y = dLat * R; // North
+        const z = alt; // Up (altitude)
+
+        return { x, y, z };
+    },
+
+    // Calculate distance between two GPS points in meters
+    distance: (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+        const R = 6378137; // Earth radius in meters
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+    },
+
+    // Assess GPS fix quality based on number of satellites
+    assessFixQuality: (sats: number): number => {
+        if (sats >= 8) return 1.0;      // Excellent
+        if (sats >= 6) return 0.8;      // Good  
+        if (sats >= 4) return 0.6;      // Fair
+        if (sats >= 3) return 0.3;      // Poor
+        return 0.1;                     // Very poor
+    }
+};
+
+// Process GPS data and update state
+export function processGPSData(gpsData: GPSData, state: MotionState, timestamp: number): boolean {
+    // Check GPS quality
+    const gpsQuality = GPSUtils.assessFixQuality(gpsData.sats);
+    state.gpsFixQuality = gpsData.sats;
+    state.gpsAvailable = gpsData.sats >= 4; // Minimum 4 satellites for reasonable fix
+
+    if (!state.gpsAvailable) {
+        console.log(`[GPS] Poor fix quality: ${gpsData.sats} sats`);
+        return false;
+    }
+
+    // Set reference point on first GPS fix
+    if (!state.referenceLatLon) {
+        state.referenceLatLon = { lat: gpsData.lat, lon: gpsData.lon };
+        console.log(`[GPS] Reference point set: ${gpsData.lat.toFixed(6)}, ${gpsData.lon.toFixed(6)}`);
+    }
+
+    // Convert to local coordinates
+    const localPos = GPSUtils.toLocalCoordinates(
+        gpsData.lat, gpsData.lon, gpsData.alt,
+        state.referenceLatLon.lat, state.referenceLatLon.lon
+    );
+
+    // Calculate GPS velocity if we have previous position
+    if (state.lastGPSPosition && state.lastGPSTimestamp > 0) {
+        const deltaTime = (timestamp - state.lastGPSTimestamp) / 1000.0;
+        if (deltaTime > 0 && deltaTime < 5.0) { // Reasonable time delta
+            state.gpsVelocity = {
+                x: (localPos.x - state.lastGPSPosition.x) / deltaTime,
+                y: (localPos.y - state.lastGPSPosition.y) / deltaTime,
+                z: (localPos.z - state.lastGPSPosition.z) / deltaTime
+            };
+        }
+    }
+
+    // Update GPS state
+    state.gpsPosition = localPos;
+    state.lastGPSPosition = { ...localPos };
+    state.lastGPSTimestamp = timestamp;
+
+    // Update confidence based on GPS quality
+    const gpsConfidence = Math.min(gpsQuality, 0.9); // Cap at 0.9 to always allow some IMU contribution
+    state.positionConfidence.gps = gpsConfidence;
+    state.positionConfidence.imu = 1.0 - gpsConfidence;
+
+    console.log(`[GPS] Position: E=${localPos.x.toFixed(1)}m, N=${localPos.y.toFixed(1)}m, Alt=${localPos.z.toFixed(1)}m (${gpsData.sats} sats)`);
+
+    return true;
+}
+
+// Fuse GPS and IMU position estimates
+export function fusePositionEstimates(state: MotionState): Vector3 {
+    if (!state.fusionEnabled || !state.gpsAvailable || !state.gpsPosition) {
+        return state.position; // Use IMU-only position
+    }
+
+    const imuWeight = state.positionConfidence.imu;
+    const gpsWeight = state.positionConfidence.gps;
+
+    // Weighted average of GPS and IMU positions
+    const fusedPosition: Vector3 = {
+        x: imuWeight * state.position.x + gpsWeight * state.gpsPosition.x,
+        y: imuWeight * state.position.y + gpsWeight * state.gpsPosition.y,
+        z: imuWeight * state.position.z + gpsWeight * state.gpsPosition.z
+    };
+
+    // Check for large discrepancies between GPS and IMU
+    const positionError = VectorUtils.magnitude(VectorUtils.subtract(state.position, state.gpsPosition));
+    if (positionError > 50.0) { // 50m threshold
+        console.warn(`[Fusion] Large position discrepancy: ${positionError.toFixed(1)}m between GPS and IMU`);
+
+        // If GPS is confident, reset IMU position towards GPS
+        if (state.positionConfidence.gps > 0.7) {
+            console.log(`[Fusion] Resetting IMU position towards GPS (${state.gpsFixQuality} sats)`);
+            state.position = { ...state.gpsPosition };
+            state.velocity = { ...state.gpsVelocity }; // Also reset velocity
+        }
+    }
+
+    return fusedPosition;
+} 

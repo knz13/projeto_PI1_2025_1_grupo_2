@@ -11,7 +11,7 @@ export const DadosController: EndpointController = {
         "dados-lancamento": new Pair(RequestType.GET, async (req: Request, res: Response) => {
 
             console.log("Fetching launch data...");
-            const {data: dadosLancamento, error: errorLancamento} = await SupabaseWrapper.get().from("dados_lancamento").select("*");
+            const {data: dadosLancamento, error: errorLancamento} = await SupabaseWrapper.get().from("tipo_lancamento").select("*,dados_lancamento(*)");
 
             if (errorLancamento) {
                 console.error("Erro ao buscar dados de lançamento:", errorLancamento);
@@ -24,10 +24,23 @@ export const DadosController: EndpointController = {
 
             }
 
-            const launchData: { [key: string]: DadosLancamento[] } = {};
+            var launchData: 
+                {
+                    nome: string;
+                    target: string;
+                    data: DadosLancamento[]
+                }[]
+             = [];
 
-            dadosLancamento.forEach((dadosLancamento: any) => {
-                
+            dadosLancamento.forEach((tipoLancamento: any) => {
+                const dados = tipoLancamento.dados_lancamento;
+                if (dados && dados.length > 0) {
+                    launchData.push({
+                        nome: tipoLancamento.nome,
+                        target: tipoLancamento.target,
+                        data: dados.map(parseDadosLancamento)
+                    });
+                }
             });
             
             console.log("Launch data:", launchData);
