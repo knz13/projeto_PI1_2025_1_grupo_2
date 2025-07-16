@@ -36,7 +36,7 @@ export default function LaunchCharts({ launchData }: LaunchChartsProps) {
     return launch.data.map((point: any, pointIndex: number) => ({
       ...point,
       time: pointIndex * 0.1, // Convert to seconds (assuming 100ms intervals)
-      launchName: `${launch.nome || `${(index + 1) * 10}m`}`,
+      launchName: point.tipo || launch.nome || `Launch ${index + 1}`,
       launchIndex: index,
     }))
   })
@@ -46,6 +46,13 @@ export default function LaunchCharts({ launchData }: LaunchChartsProps) {
     const data = launch.data
     if (!data || data.length === 0) return null
 
+    // Get actual parameters from the first data point (they're the same for all points in a launch)
+    const firstPoint = data[0]
+    const launchType = firstPoint?.tipo || launch.nome || `Launch ${index + 1}`
+    const peso = firstPoint?.peso || 'N/A'
+    const pressao = firstPoint?.pressao || 'N/A'
+    const angulo = firstPoint?.angulo_lancamento || 'N/A'
+
     const maxAltitude = Math.max(...data.map((p: any) => p.altitude || 0))
     const maxVelocity = Math.max(...data.map((p: any) => p.velocity || 0))
     const maxAcceleration = Math.max(...data.map((p: any) => p.acceleration || 0))
@@ -53,7 +60,10 @@ export default function LaunchCharts({ launchData }: LaunchChartsProps) {
     const avgVelocity = data.reduce((sum: number, p: any) => sum + (p.velocity || 0), 0) / data.length
 
     return {
-      launch: launch.nome || `${(index + 1) * 10}m`,
+      launch: launchType,
+      peso: peso,
+      pressao: pressao,
+      angulo: angulo,
       maxAltitude: maxAltitude.toFixed(1),
       maxVelocity: maxVelocity.toFixed(1),
       maxAcceleration: maxAcceleration.toFixed(1),
@@ -76,21 +86,42 @@ export default function LaunchCharts({ launchData }: LaunchChartsProps) {
             </CardHeader>
             <CardContent className="pt-0">
               <div className="space-y-1 text-xs">
+                {/* Launch Parameters */}
+                <div className="bg-gray-50 p-2 rounded mb-2">
+                  <div className="text-xs font-semibold text-gray-600 mb-1">Parâmetros de Lançamento</div>
+                  <div className="grid grid-cols-2 gap-1">
+                    <div className="flex justify-between">
+                      <span>Peso:</span>
+                      <span className="font-medium">{metrics?.peso}kg</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Pressão:</span>
+                      <span className="font-medium">{metrics?.pressao}psi</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Ângulo:</span>
+                      <span className="font-medium">{metrics?.angulo}°</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Performance Results */}
+                <div className="text-xs font-semibold text-gray-600 mb-1">Resultados de Performance</div>
                 <div className="flex justify-between">
                   <span>Altitude Máx:</span>
-                  <span className="font-bold">{metrics?.maxAltitude}m</span>
+                  <span className="font-bold text-pink-600">{metrics?.maxAltitude}m</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Velocidade Máx:</span>
-                  <span className="font-bold">{metrics?.maxVelocity}m/s</span>
+                  <span className="font-bold text-blue-600">{metrics?.maxVelocity}m/s</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Aceleração Máx:</span>
-                  <span className="font-bold">{metrics?.maxAcceleration}m/s²</span>
+                  <span className="font-bold text-green-600">{metrics?.maxAcceleration}m/s²</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Tempo de Voo:</span>
-                  <span className="font-bold">{metrics?.flightTime}s</span>
+                  <span className="font-bold text-purple-600">{metrics?.flightTime}s</span>
                 </div>
               </div>
             </CardContent>
@@ -125,6 +156,20 @@ export default function LaunchCharts({ launchData }: LaunchChartsProps) {
                     "Altitude"
                   ]}
                   labelFormatter={(label) => `Tempo: ${Number.parseFloat(label).toFixed(2)}s`}
+                  content={({ active, payload, label }) => {
+                    if (active && payload && payload.length) {
+                      const data = payload[0].payload;
+                      return (
+                        <div className="bg-white p-3 border rounded shadow-lg">
+                          <p className="font-semibold">{`${data.tipo || 'Launch'}`}</p>
+                          <p className="text-sm text-gray-600">{`Tempo: ${Number.parseFloat(String(label || 0)).toFixed(2)}s`}</p>
+                          <p className="text-pink-600">{`Altitude: ${Number.parseFloat(String(payload[0].value || 0)).toFixed(2)}m`}</p>
+                          {data.peso && <p className="text-xs text-gray-500">{`Peso: ${data.peso}kg | Pressão: ${data.pressao}psi | Ângulo: ${data.angulo_lancamento}°`}</p>}
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
                 />
                 <Legend wrapperStyle={{ paddingTop: 20 }} />
                 {launchData.map((launch, index) => (
@@ -133,11 +178,12 @@ export default function LaunchCharts({ launchData }: LaunchChartsProps) {
                     type="monotone"
                     dataKey="altitude"
                     data={timeBasedData.filter((d) => d.launchIndex === index)}
-                    name={`${launch.nome || `${(index + 1) * 10}m`}`}
+                    name={`${launch.data[0]?.tipo || launch.nome || `Launch ${index + 1}`}`}
                     stroke={COLORS[index]}
                     strokeWidth={3}
                     dot={false}
                     activeDot={{ r: 6, strokeWidth: 2 }}
+                    isAnimationActive={false}
                   />
                 ))}
               </LineChart>
@@ -173,6 +219,20 @@ export default function LaunchCharts({ launchData }: LaunchChartsProps) {
                     "Velocidade"
                   ]}
                   labelFormatter={(label) => `Tempo: ${Number.parseFloat(label).toFixed(2)}s`}
+                  content={({ active, payload, label }) => {
+                    if (active && payload && payload.length) {
+                      const data = payload[0].payload;
+                      return (
+                        <div className="bg-white p-3 border rounded shadow-lg">
+                          <p className="font-semibold">{`${data.tipo || 'Launch'}`}</p>
+                          <p className="text-sm text-gray-600">{`Tempo: ${Number.parseFloat(String(label || 0)).toFixed(2)}s`}</p>
+                          <p className="text-blue-600">{`Velocidade: ${Number.parseFloat(String(payload[0].value || 0)).toFixed(2)}m/s`}</p>
+                          {data.peso && <p className="text-xs text-gray-500">{`Peso: ${data.peso}kg | Pressão: ${data.pressao}psi | Ângulo: ${data.angulo_lancamento}°`}</p>}
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
                 />
                 <Legend wrapperStyle={{ paddingTop: 20 }} />
                 {launchData.map((launch, index) => (
@@ -181,11 +241,12 @@ export default function LaunchCharts({ launchData }: LaunchChartsProps) {
                     type="monotone"
                     dataKey="velocity"
                     data={timeBasedData.filter((d) => d.launchIndex === index)}
-                    name={`${launch.nome || `${(index + 1) * 10}m`}`}
+                    name={`${launch.data[0]?.tipo || launch.nome || `Launch ${index + 1}`}`}
                     stroke={COLORS[index]}
                     strokeWidth={3}
                     dot={false}
                     activeDot={{ r: 6, strokeWidth: 2 }}
+                    isAnimationActive={false}
                   />
                 ))}
               </LineChart>
@@ -221,6 +282,20 @@ export default function LaunchCharts({ launchData }: LaunchChartsProps) {
                     "Aceleração"
                   ]}
                   labelFormatter={(label) => `Tempo: ${Number.parseFloat(label).toFixed(2)}s`}
+                  content={({ active, payload, label }) => {
+                    if (active && payload && payload.length) {
+                      const data = payload[0].payload;
+                      return (
+                        <div className="bg-white p-3 border rounded shadow-lg">
+                          <p className="font-semibold">{`${data.tipo || 'Launch'}`}</p>
+                          <p className="text-sm text-gray-600">{`Tempo: ${Number.parseFloat(String(label || 0)).toFixed(2)}s`}</p>
+                          <p className="text-green-600">{`Aceleração: ${Number.parseFloat(String(payload[0].value || 0)).toFixed(2)}m/s²`}</p>
+                          {data.peso && <p className="text-xs text-gray-500">{`Peso: ${data.peso}kg | Pressão: ${data.pressao}psi | Ângulo: ${data.angulo_lancamento}°`}</p>}
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
                 />
                 <Legend wrapperStyle={{ paddingTop: 20 }} />
                 {launchData.map((launch, index) => (
@@ -229,11 +304,12 @@ export default function LaunchCharts({ launchData }: LaunchChartsProps) {
                     type="monotone"
                     dataKey="acceleration"
                     data={timeBasedData.filter((d) => d.launchIndex === index)}
-                    name={`${launch.nome || `${(index + 1) * 10}m`}`}
+                    name={`${launch.data[0]?.tipo || launch.nome || `Launch ${index + 1}`}`}
                     stroke={COLORS[index]}
                     strokeWidth={3}
                     dot={false}
                     activeDot={{ r: 6, strokeWidth: 2 }}
+                    isAnimationActive={false}
                   />
                 ))}
               </LineChart>
@@ -272,13 +348,28 @@ export default function LaunchCharts({ launchData }: LaunchChartsProps) {
                     name === 'altitude' ? "Altitude" : "Velocidade"
                   ]}
                   labelFormatter={() => "Trajetória"}
+                  content={({ active, payload, label }) => {
+                    if (active && payload && payload.length) {
+                      const data = payload[0].payload;
+                      return (
+                        <div className="bg-white p-3 border rounded shadow-lg">
+                          <p className="font-semibold">{`${data.tipo || 'Launch'}`}</p>
+                          <p className="text-sm text-gray-600">{`Tempo: ${Number.parseFloat(String(data.time || 0)).toFixed(2)}s`}</p>
+                          <p className="text-purple-600">{`Velocidade: ${Number.parseFloat(String(data.velocity || 0)).toFixed(2)}m/s`}</p>
+                          <p className="text-purple-600">{`Altitude: ${Number.parseFloat(String(data.altitude || 0)).toFixed(2)}m`}</p>
+                          {data.peso && <p className="text-xs text-gray-500">{`Peso: ${data.peso}kg | Pressão: ${data.pressao}psi | Ângulo: ${data.angulo_lancamento}°`}</p>}
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
                 />
                 <Legend wrapperStyle={{ paddingTop: 20 }} />
                 {launchData.map((launch, index) => (
                   <Scatter
                     key={index}
                     data={timeBasedData.filter((d) => d.launchIndex === index)}
-                    name={`${launch.nome || `${(index + 1) * 10}m`}`}
+                    name={`${launch.data[0]?.tipo || launch.nome || `Launch ${index + 1}`}`}
                     fill={COLORS[index]}
                   />
                 ))}

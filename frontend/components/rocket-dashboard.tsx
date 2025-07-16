@@ -955,55 +955,6 @@ export default function RocketDashboard() {
               <CardTitle className="text-lg sm:text-xl text-pink-700">Análise de Lançamentos</CardTitle>
             </CardHeader>
             <CardContent className="pt-4 sm:pt-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
-                {launchData.map((launch, index) => (
-                  <Card key={index} className="border-pink-100">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-base sm:text-lg">
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-                          <span>Lançamento {index + 1}</span>
-                          <span className="text-xs sm:text-sm font-normal text-gray-500">
-                            {index === 0 ? "10 metros" : index === 1 ? "20 metros" : "30 metros"}
-                          </span>
-                        </div>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Data:</span>
-                          <span className="font-medium">{new Date(launch.data[0].timestamp).toLocaleDateString()}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Altitude Máx:</span>
-                          <span className="font-medium">
-                            {Math.max(...launch.data.map((d: any) => d.altitude)).toFixed(1)} m
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Posição Máx:</span>
-                          <span className="font-medium">
-                            {Math.max(...launch.data.map((d: any) => d.position)).toFixed(1)} m
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Velocidade Máx:</span>
-                          <span className="font-medium">
-                            {Math.max(...launch.data.map((d: any) => d.velocity)).toFixed(1)} m/s
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">Aceleração Máx:</span>
-                          <span className="font-medium">
-                            {Math.max(...launch.data.map((d: any) => d.acceleration)).toFixed(1)} m/s²
-                          </span>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-
               <LaunchCharts launchData={launchData} />
             </CardContent>
           </Card>
