@@ -124,6 +124,15 @@ export interface DadosLancamento {
     velocidade: number[];
 }
 
+// Interface para os dados formatados para o frontend
+export interface DadosLancamentoFormatado {
+    timestamp: string;
+    altitude: number;
+    position: number;
+    velocity: number;
+    acceleration: number;
+}
+
 export interface EndpointController {
     name: string;
     routes: { [key: string]: Pair<RequestType, (req: Request, res: Response) => Promise<Response> | Promise<void>> };
@@ -146,4 +155,31 @@ export function parseDadosLancamento(json: any): DadosLancamento {
             ? json.velocidade.map(Number)
             : JSON.parse(json.velocidade).map(Number),
     };
+}
+
+// Função para converter dados do banco para o formato esperado pelo frontend
+export function formatarDadosParaFrontend(dadosLancamento: DadosLancamento): DadosLancamentoFormatado[] {
+    const maxLength = Math.max(
+        dadosLancamento.altura.length,
+        dadosLancamento.aceleracao.length,
+        dadosLancamento.velocidade.length
+    );
+
+    const dados: DadosLancamentoFormatado[] = [];
+    const baseDate = new Date(dadosLancamento.created_at);
+
+    for (let i = 0; i < maxLength; i++) {
+        // Criar timestamp incrementando segundos baseado no índice
+        const timestamp = new Date(baseDate.getTime() + (i * 1000));
+        
+        dados.push({
+            timestamp: timestamp.toISOString(),
+            altitude: dadosLancamento.altura[i] || 0,
+            position: dadosLancamento.altura[i] || 0, // Assumindo que posição = altura
+            velocity: dadosLancamento.velocidade[i] || 0,
+            acceleration: dadosLancamento.aceleracao[i] || 0
+        });
+    }
+
+    return dados;
 }

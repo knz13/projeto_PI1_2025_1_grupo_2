@@ -17,9 +17,21 @@ import {
   LaunchCommand
 } from "@/lib"
 
+interface LaunchDataItem {
+  nome: string;
+  target: string;
+  data: Array<{
+    timestamp: string;
+    altitude: number;
+    position: number;
+    velocity: number;
+    acceleration: number;
+  }>;
+}
+
 export default function RocketDashboard() {
   const [activeTab, setActiveTab] = useState("rocket")
-  const [launchData, setLaunchData] = useState<any[]>([])
+  const [launchData, setLaunchData] = useState<LaunchDataItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   // WebSocket related state
@@ -226,9 +238,9 @@ export default function RocketDashboard() {
                       <CardHeader className="pb-2">
                         <CardTitle className="text-base sm:text-lg">
                           <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-                            <span>Lançamento {index + 1}</span>
+                            <span>{launch.nome}</span>
                             <span className="text-xs sm:text-sm font-normal text-gray-500">
-                              {index === 0 ? "10 metros" : index === 1 ? "20 metros" : "30 metros"}
+                              {launch.target}
                             </span>
                           </div>
                         </CardTitle>
@@ -269,7 +281,7 @@ export default function RocketDashboard() {
                   ))}
                 </div>
 
-                <LaunchCharts />
+                <LaunchCharts launchData={launchData} />
               </CardContent>
             </Card>
           </TabsContent>

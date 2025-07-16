@@ -1,4 +1,4 @@
-import { DadosLancamento, EndpointController, parseDadosLancamento, RequestType } from "./interfaces";
+import { DadosLancamento, DadosLancamentoFormatado, EndpointController, parseDadosLancamento, formatarDadosParaFrontend, RequestType } from "./interfaces";
 import { SupabaseWrapper } from "./supabase_wrapper";
 import { Pair } from "./utils";
 import { Router, Request, Response } from "express";
@@ -28,17 +28,21 @@ export const DadosController: EndpointController = {
                 {
                     nome: string;
                     target: string;
-                    data: DadosLancamento[]
+                    data: DadosLancamentoFormatado[]
                 }[]
              = [];
 
             dadosLancamento.forEach((tipoLancamento: any) => {
                 const dados = tipoLancamento.dados_lancamento;
                 if (dados && dados.length > 0) {
+                    // Para cada lançamento, pegar apenas o primeiro (ou você pode modificar para pegar todos)
+                    const dadoParsed = parseDadosLancamento(dados[0]);
+                    const dadosFormatados = formatarDadosParaFrontend(dadoParsed);
+                    
                     launchData.push({
                         nome: tipoLancamento.nome,
                         target: tipoLancamento.target,
-                        data: dados.map(parseDadosLancamento)
+                        data: dadosFormatados
                     });
                 }
             });
