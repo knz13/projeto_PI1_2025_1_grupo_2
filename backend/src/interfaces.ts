@@ -122,6 +122,8 @@ export interface DadosLancamento {
     altura: number[];
     aceleracao: number[];
     velocidade: number[];
+    posicao: number[];
+    id_tipo: number;
 }
 
 // Interface para os dados formatados para o frontend
@@ -154,6 +156,10 @@ export function parseDadosLancamento(json: any): DadosLancamento {
         velocidade: Array.isArray(json.velocidade)
             ? json.velocidade.map(Number)
             : JSON.parse(json.velocidade).map(Number),
+        posicao: Array.isArray(json.posicao)
+            ? json.posicao.map(Number)
+            : JSON.parse(json.posicao || '[]').map(Number),
+        id_tipo: Number(json.id_tipo),
     };
 }
 
@@ -162,7 +168,8 @@ export function formatarDadosParaFrontend(dadosLancamento: DadosLancamento): Dad
     const maxLength = Math.max(
         dadosLancamento.altura.length,
         dadosLancamento.aceleracao.length,
-        dadosLancamento.velocidade.length
+        dadosLancamento.velocidade.length,
+        dadosLancamento.posicao.length
     );
 
     const dados: DadosLancamentoFormatado[] = [];
@@ -170,12 +177,12 @@ export function formatarDadosParaFrontend(dadosLancamento: DadosLancamento): Dad
 
     for (let i = 0; i < maxLength; i++) {
         // Criar timestamp incrementando segundos baseado no índice
-        const timestamp = new Date(baseDate.getTime() + (i * 1000));
+        const timestamp = new Date(baseDate.getTime() + (i * 200)); // 200ms entre cada ponto
         
         dados.push({
             timestamp: timestamp.toISOString(),
             altitude: dadosLancamento.altura[i] || 0,
-            position: dadosLancamento.altura[i] || 0, // Assumindo que posição = altura
+            position: dadosLancamento.posicao[i] || 0, // Agora usa dados de posição reais
             velocity: dadosLancamento.velocidade[i] || 0,
             acceleration: dadosLancamento.aceleracao[i] || 0
         });

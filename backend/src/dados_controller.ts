@@ -11,7 +11,23 @@ export const DadosController: EndpointController = {
         "dados-lancamento": new Pair(RequestType.GET, async (req: Request, res: Response) => {
 
             console.log("Fetching launch data...");
-            const {data: dadosLancamento, error: errorLancamento} = await SupabaseWrapper.get().from("tipo_lancamento").select("*,dados_lancamento(*)");
+            const {data: dadosLancamento, error: errorLancamento} = await SupabaseWrapper.get()
+                .from("tipo_lancamento")
+                .select(`
+                    *,
+                    dados_lancamento(
+                        id_lancamento,
+                        created_at,
+                        angulo_lancamento,
+                        peso,
+                        pressao,
+                        altura,
+                        aceleracao,
+                        velocidade,
+                        posicao,
+                        id_tipo
+                    )
+                `);
 
             if (errorLancamento) {
                 console.error("Erro ao buscar dados de lançamento:", errorLancamento);

@@ -1,5 +1,5 @@
 "use client"
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Label } from "recharts"
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Label, ScatterChart, Scatter } from "recharts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 // Colors for each launch
@@ -22,6 +22,62 @@ interface LaunchChartsProps {
 }
 
 export default function LaunchCharts({ launchData }: LaunchChartsProps) {
+  // Custom tooltip component for position vs altitude
+  const CustomTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length > 0) {
+      const point = payload[0].payload;
+      const launch = launchData[point.launchIndex];
+      
+      return (
+        <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
+          <div className="flex items-center gap-2 mb-2">
+            <div 
+              className="w-3 h-3 rounded-full" 
+              style={{ backgroundColor: COLORS[point.launchIndex] }}
+            ></div>
+            <p className="font-semibold text-gray-800">
+              {launch?.nome} ({launch?.target})
+            </p>
+          </div>
+          <p className="text-sm text-gray-600">
+            Posição: {point.position.toFixed(2)} m
+          </p>
+          <p className="text-sm text-gray-600">
+            Altitude: {point.altitude.toFixed(2)} m
+          </p>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  const CustomVelocityTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length > 0) {
+      const point = payload[0].payload;
+      const launch = launchData[point.launchIndex];
+      
+      return (
+        <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
+          <div className="flex items-center gap-2 mb-2">
+            <div 
+              className="w-3 h-3 rounded-full" 
+              style={{ backgroundColor: COLORS[point.launchIndex] }}
+            ></div>
+            <p className="font-semibold text-gray-800">
+              {launch?.nome} ({launch?.target})
+            </p>
+          </div>
+          <p className="text-sm text-gray-600">
+            Velocidade: {point.velocity.toFixed(2)} m/s
+          </p>
+          <p className="text-sm text-gray-600">
+            Aceleração: {point.acceleration.toFixed(2)} m/s²
+          </p>
+        </div>
+      );
+    }
+    return null;
+  };
   // Se não há dados, mostrar uma mensagem
   if (!launchData || launchData.length === 0) {
     return (
@@ -64,36 +120,37 @@ export default function LaunchCharts({ launchData }: LaunchChartsProps) {
         <CardContent className="pt-6">
           <div className="h-[400px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={positionAltitudeData} margin={{ top: 5, right: 30, left: 20, bottom: 25 }}>
+              <ScatterChart margin={{ top: 5, right: 30, left: 20, bottom: 25 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="position" type="number" domain={["dataMin", "dataMax"]} allowDataOverflow>
-                  <Label value="Posição (m)" offset={-10} position="insideBottom" />
+                <XAxis 
+                  type="number" 
+                  dataKey="position" 
+                  domain={[0, "dataMax"]} 
+                  allowDataOverflow
+                >
+                  <Label value="Posição Horizontal (m)" offset={-10} position="insideBottom" />
                 </XAxis>
-                <YAxis domain={["dataMin", "dataMax"]} allowDataOverflow>
+                <YAxis 
+                  type="number" 
+                  dataKey="altitude" 
+                  domain={[0, "dataMax"]} 
+                  allowDataOverflow
+                >
                   <Label value="Altitude (m)" angle={-90} position="insideLeft" style={{ textAnchor: "middle" }} />
                 </YAxis>
-                <Tooltip
-                  formatter={(value, name) => [
-                  `${Number.parseFloat(value as string).toFixed(2)}`,
-                  name === "altitude" ? "Altitude (m)" : "Posição (m)",
-                  ]}
-                  labelFormatter={(label) => `Posição: ${Number.parseFloat(label).toFixed(2)} m`}
-                />
+                <Tooltip content={<CustomTooltip />} />
                 <Legend wrapperStyle={{ paddingTop: 20 }} />
                 {launchData.map((launch, index) => (
-                  <Line
+                  <Scatter
                     key={index}
-                    type="monotone"
-                    dataKey="altitude"
                     data={positionAltitudeData.filter((d) => d.launchIndex === index)}
                     name={`${launch.nome} (${launch.target})`}
-                    stroke={COLORS[index]}
-                    strokeWidth={2}
-                    dot={{ r: 4, strokeWidth: 1 }}
-                    activeDot={{ r: 6, strokeWidth: 2 }}
+                    fill={COLORS[index]}
+                    line={{ stroke: COLORS[index], strokeWidth: 2 }}
+                    lineType="joint"
                   />
                 ))}
-              </LineChart>
+              </ScatterChart>
             </ResponsiveContainer>
           </div>
         </CardContent>
@@ -114,13 +171,7 @@ export default function LaunchCharts({ launchData }: LaunchChartsProps) {
                 <YAxis domain={["dataMin", "dataMax"]} allowDataOverflow>
                   <Label value="Aceleração (m/s²)" angle={-90} position="insideLeft" style={{ textAnchor: "middle" }} />
                 </YAxis>
-                <Tooltip
-                  formatter={(value, name) => [
-                    `${Number.parseFloat(value as string).toFixed(2)}`,
-                    name === "acceleration" ? "Aceleração (m/s²)" : "Velocidade (m/s)",
-                  ]}
-                  labelFormatter={(label) => `Velocidade: ${Number.parseFloat(label).toFixed(2)} m/s`}
-                />
+                <Tooltip content={<CustomVelocityTooltip />} />
                 <Legend wrapperStyle={{ paddingTop: 20 }}/>
                 {launchData.map((launch, index) => (
                   <Line 
