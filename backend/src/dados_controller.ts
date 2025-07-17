@@ -9,74 +9,82 @@ export const DadosController: EndpointController = {
     name: "dados",
     routes: {
         "dados-lancamento": new Pair(RequestType.GET, async (req: Request, res: Response) => {
+            try {
 
-            console.log("Fetching launch data...");
-            const { data: dadosLancamento, error: errorLancamento } = await SupabaseWrapper.get().from("dados_lancamento").select("*");
+                console.log("Fetching launch data...");
+                const { data: dadosLancamento, error: errorLancamento } = await SupabaseWrapper.get().from("dados_lancamento").select("*");
 
-            if (errorLancamento) {
-                console.error("Erro ao buscar dados de lançamento:", errorLancamento);
-                return res.status(500).json({ error: "Erro ao buscar dados de lançamento" });
-            }
-
-            if (!dadosLancamento || dadosLancamento.length === 0) {
-                console.warn("Nenhum dado de lançamento encontrado");
-                return res.status(404).json({ error: "Nenhum dado de lançamento encontrado" });
-
-            }
-
-            console.log("Dados de lançamento encontrados:", JSON.stringify(dadosLancamento, null, 2));
-
-            // Group launches by tipo and transform data
-            const launchsByTipo: { [key: string]: any[] } = {};
-
-            dadosLancamento.forEach((dadoLancamento: any) => {
-                const parsed = parseDadosLancamento(dadoLancamento);
-
-                if (!launchsByTipo[parsed.tipo]) {
-                    launchsByTipo[parsed.tipo] = [];
+                if (errorLancamento) {
+                    console.error("Erro ao buscar dados de lançamento:", errorLancamento);
+                    return res.status(500).json({ error: "Erro ao buscar dados de lançamento" });
                 }
 
-                // Convert arrays to individual data points for this launch
-                const dataPoints = [];
-                const maxLength = Math.max(
-                    parsed.altura.length,
-                    parsed.aceleracao.length,
-                    parsed.velocidade.length,
-                    parsed.tempo.length,
-                    parsed.posicao.length
-                );
+                if (!dadosLancamento || dadosLancamento.length === 0) {
+                    console.warn("Nenhum dado de lançamento encontrado");
+                    return res.status(404).json({ error: "Nenhum dado de lançamento encontrado" });
 
-                for (let i = 0; i < maxLength; i++) {
-                    dataPoints.push({
-                        timestamp: parsed.created_at,
-                        relativeTime: parsed.tempo[i] || (i * 0.1), // Use actual time or fallback to 100ms intervals
-                        altitude: parsed.altura[i] || 0,
-                        acceleration: parsed.aceleracao[i] || 0,
-                        velocity: parsed.velocidade[i] || 0,
-                        position: parsed.posicao[i] || 0, // Use actual position data
-                        time: parsed.tempo[i] || (i * 0.1), // Add time field for charts
-                        id_lancamento: parsed.id_lancamento,
-                        angulo_lancamento: parsed.angulo_lancamento,
-                        peso: parsed.peso,
-                        pressao: parsed.pressao,
-                        tipo: parsed.tipo
-                    });
                 }
 
-                // Add all data points from this launch to the group
-                launchsByTipo[parsed.tipo].push(...dataPoints);
-            });
+                console.log("Dados de lançamento encontrados:", JSON.stringify(dadosLancamento, null, 2));
 
-            // Convert grouped data to expected format
-            const launchData = Object.keys(launchsByTipo).map(tipo => ({
-                nome: `Lançamento ${tipo}`,
-                target: tipo,
-                data: launchsByTipo[tipo]
-            }));
+                // Group launches by tipo and transform data
+                const launchsByTipo: { [key: string]: any[] } = {};
 
-            console.log("Launch data:", launchData);
+                dadosLancamento.forEach((dadoLancamento: any) => {
+                    const parsed = parseDadosLancamento(dadoLancamento);
 
-            return res.json(launchData);
+                    if (!launchsByTipo[parsed.tipo]) {
+                        launchsByTipo[parsed.tipo] = [];
+                    }
+
+                    // Convert arrays to individual data points for this launch
+                    const dataPoints = [];
+                    const maxLength = Math.max(
+                        parsed.altura.length,
+                        parsed.aceleracao.length,
+                        parsed.velocidade.length,
+                        parsed.tempo.length,
+                        parsed.posicao.length
+                    );
+
+                    for (let i = 0; i < maxLength; i++) {
+                        dataPoints.push({
+                            timestamp: parsed.created_at,
+                            relativeTime: parsed.tempo[i] || (i * 0.1), // Use actual time or fallback to 100ms intervals
+                            altitude: parsed.altura[i] || 0,
+                            acceleration: parsed.aceleracao[i] || 0,
+                            velocity: parsed.velocidade[i] || 0,
+                            position: parsed.posicao[i] || 0, // Use actual position data
+                            time: parsed.tempo[i] || (i * 0.1), // Add time field for charts
+                            id_lancamento: parsed.id_lancamento,
+                            angulo_lancamento: parsed.angulo_lancamento,
+                            peso: parsed.peso,
+                            pressao: parsed.pressao,
+                            tipo: parsed.tipo
+                        });
+                    }
+
+                    // Add all data points from this launch to the group
+                    launchsByTipo[parsed.tipo].push(...dataPoints);
+                });
+
+                // Convert grouped data to expected format
+                const launchData = Object.keys(launchsByTipo).map(tipo => ({
+                    nome: `Lançamento ${tipo}`,
+                    target: tipo,
+                    data: launchsByTipo[tipo]
+                }));
+
+                console.log("Launch data:", launchData);
+
+                return res.json(launchData);
+            } catch (error) {
+                console.error("Erro inesperado:", error);
+                return res.status(500).json({
+                    error: "Erro interno do servidor",
+                    details: error instanceof Error ? error.message : "Unknown error"
+                });
+            }
         }),
 
         "send-dados-lancamento": new Pair(RequestType.POST, async (req: Request, res: Response) => {
