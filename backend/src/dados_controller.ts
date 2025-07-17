@@ -12,17 +12,32 @@ export const DadosController: EndpointController = {
             try {
 
                 console.log("Fetching launch data...");
+
+                // Check if Supabase is initialized
+                if (!SupabaseWrapper.get()) {
+                    console.error("Supabase client not initialized");
+                    return res.status(500).json({
+                        error: "Database connection not initialized",
+                        details: "Internal configuration error"
+                    });
+                }
+
                 const { data: dadosLancamento, error: errorLancamento } = await SupabaseWrapper.get().from("dados_lancamento").select("*");
 
                 if (errorLancamento) {
                     console.error("Erro ao buscar dados de lançamento:", errorLancamento);
-                    return res.status(500).json({ error: "Erro ao buscar dados de lançamento" });
+                    return res.status(500).json({
+                        error: "Erro ao buscar dados de lançamento",
+                        details: process.env.NODE_ENV === 'development' ? errorLancamento.message : undefined
+                    });
                 }
 
                 if (!dadosLancamento || dadosLancamento.length === 0) {
                     console.warn("Nenhum dado de lançamento encontrado");
-                    return res.status(404).json({ error: "Nenhum dado de lançamento encontrado" });
-
+                    return res.status(404).json({
+                        error: "Nenhum dado de lançamento encontrado",
+                        details: "A tabela está vazia"
+                    });
                 }
 
                 console.log("Dados de lançamento encontrados:", JSON.stringify(dadosLancamento, null, 2));

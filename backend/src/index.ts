@@ -38,12 +38,41 @@ startWsServer(appWs);
 
 // Configure CORS
 const corsOrigin = process.env.CORS_ORIGIN || "*";
-app.use(cors({
-    origin: corsOrigin,
+const corsOptions = {
+    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+
+        if (corsOrigin === "*") {
+            // Allow any origin if CORS_ORIGIN is "*"
+            return callback(null, true);
+        }
+
+        const allowedOrigins = corsOrigin.split(',').map(o => o.trim());
+        if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
+            callback(null, true);
+        } else {
+            console.warn(`Blocked request from unauthorized origin: ${origin}`);
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization']
-}));
+    allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization'],
+    optionsSuccessStatus: 200 // Some legacy browsers (IE11, various SmartTVs) choke on 204
+};
+
+app.use(cors(corsOptions));
+
+// Add error handling middleware
+app.use((err: any, req: Request, res: Response, next: any) => {
+    console.error('Unhandled error:', err);
+    res.status(500).json({
+        error: 'Internal server error',
+        message: process.env.NODE_ENV === 'development' ? err.message : 'An unexpected error occurred',
+        stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
+});
 
 // Configure file upload limits
 const maxFileSize = parseInt(process.env.MAX_FILE_SIZE || '524288000'); // 500MB default
