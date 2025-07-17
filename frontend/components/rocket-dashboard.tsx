@@ -249,6 +249,7 @@ export default function RocketDashboard() {
       setIsLoading(true);
       try {
         const result = await fetch(`${Environment.get_backend_url()}/dados/dados-lancamento`);
+        console.log("Result:", result);
         if (result.status === 200) {
           const resultJson = await result.json();
           console.log("Launch data:", resultJson);
