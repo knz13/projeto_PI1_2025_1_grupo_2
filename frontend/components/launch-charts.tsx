@@ -41,6 +41,24 @@ export default function LaunchCharts({ launchData }: LaunchChartsProps) {
     }))
   })
 
+  // Calculate altitude range for focused Y-axis
+  const altitudes = timeBasedData.map(d => d.altitude || 0)
+  const minAltitude = Math.min(...altitudes)
+  const maxAltitude = Math.max(...altitudes)
+  const altitudeRange = maxAltitude - minAltitude
+  const altitudePadding = altitudeRange * 0.1 // Add 10% padding
+  const altitudeAxisMin = Math.max(0, minAltitude - altitudePadding)
+  const altitudeAxisMax = maxAltitude + altitudePadding
+
+  // Calculate velocity range for focused X-axis in trajectory plot
+  const velocities = timeBasedData.map(d => d.velocity || 0)
+  const minVelocity = Math.min(...velocities)
+  const maxVelocity = Math.max(...velocities)
+  const velocityRange = maxVelocity - minVelocity
+  const velocityPadding = velocityRange * 0.1 // Add 10% padding
+  const velocityAxisMin = Math.max(0, minVelocity - velocityPadding)
+  const velocityAxisMax = maxVelocity + velocityPadding
+
   // Calculate performance metrics for summary cards
   const performanceMetrics = launchData.map((launch, index) => {
     const data = launch.data
@@ -147,7 +165,7 @@ export default function LaunchCharts({ launchData }: LaunchChartsProps) {
                 >
                   <Label value="Tempo (segundos)" offset={-10} position="insideBottom" />
                 </XAxis>
-                <YAxis domain={[0, 'dataMax']}>
+                <YAxis domain={[altitudeAxisMin - 10, altitudeAxisMax + 10]} tickFormatter={(value) => `${value.toFixed(1)}m`}>
                   <Label value="Altitude (metros)" angle={-90} position="insideLeft" style={{ textAnchor: "middle" }} />
                 </YAxis>
                 <Tooltip
@@ -331,14 +349,16 @@ export default function LaunchCharts({ launchData }: LaunchChartsProps) {
                 <XAxis
                   dataKey="velocity"
                   type="number"
-                  domain={[0, 'dataMax']}
+                  domain={[velocityAxisMin - 1, velocityAxisMax + 1]}
+                  tickFormatter={(value) => `${value.toFixed(1)}`}
                 >
                   <Label value="Velocidade (m/s)" offset={-10} position="insideBottom" />
                 </XAxis>
                 <YAxis
                   dataKey="altitude"
                   type="number"
-                  domain={[0, 'dataMax']}
+                  domain={[altitudeAxisMin - 10, altitudeAxisMax + 10]}
+                  tickFormatter={(value) => `${value.toFixed(1)}`}
                 >
                   <Label value="Altitude (m)" angle={-90} position="insideLeft" style={{ textAnchor: "middle" }} />
                 </YAxis>

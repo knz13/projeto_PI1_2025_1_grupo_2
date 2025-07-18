@@ -139,21 +139,21 @@ export function parseDadosLancamento(json: any): DadosLancamento {
         angulo_lancamento: Number(json.angulo_lancamento),
         peso: Number(json.peso),
         pressao: Number(json.pressao),
-        altura: Array.isArray(json.altura)
+        altura: json.altura ? (Array.isArray(json.altura)
             ? json.altura.map(Number)
-            : JSON.parse(json.altura).map(Number),
-        aceleracao: Array.isArray(json.aceleracao)
+            : JSON.parse(json.altura).map(Number)) : [],
+        aceleracao: json.aceleracao ? (Array.isArray(json.aceleracao)
             ? json.aceleracao.map(Number)
-            : JSON.parse(json.aceleracao).map(Number),
-        velocidade: Array.isArray(json.velocidade)
+            : JSON.parse(json.aceleracao).map(Number)) : [],
+        velocidade: json.velocidade ? (Array.isArray(json.velocidade)
             ? json.velocidade.map(Number)
-            : JSON.parse(json.velocidade).map(Number),
-        tempo: Array.isArray(json.tempo)
+            : JSON.parse(json.velocidade).map(Number)) : [],
+        tempo: json.tempo ? (Array.isArray(json.tempo)
             ? json.tempo.map(Number)
-            : JSON.parse(json.tempo).map(Number),
-        posicao: Array.isArray(json.posicao)
+            : JSON.parse(json.tempo).map(Number)) : [],
+        posicao: json.posicao ? (Array.isArray(json.posicao)
             ? json.posicao.map(Number)
-            : JSON.parse(json.posicao).map(Number),
+            : JSON.parse(json.posicao).map(Number)) : [],
         tipo: String(json.tipo),
     };
 }

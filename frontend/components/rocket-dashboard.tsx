@@ -20,6 +20,7 @@ export default function RocketDashboard() {
   const [activeTab, setActiveTab] = useState("rocket")
   const [launchData, setLaunchData] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [selectedLaunchId, setSelectedLaunchId] = useState<number | null>(null) // NEW: Selected launch ID
 
   // WebSocket related state
   const [wsClient, setWsClient] = useState<WSClient | null>(null)
@@ -965,10 +966,41 @@ export default function RocketDashboard() {
         <TabsContent value="rocket" className="space-y-4 sm:space-y-6">
           <Card className="max-w-6xl mx-auto">
             <CardHeader className="bg-pink-50">
-              <CardTitle className="text-lg sm:text-xl text-pink-700">Análise de Lançamentos</CardTitle>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <CardTitle className="text-lg sm:text-xl text-pink-700">Análise de Lançamentos</CardTitle>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={selectedLaunchId || ''}
+                    onChange={(e) => setSelectedLaunchId(e.target.value ? Number(e.target.value) : null)}
+                    className="border rounded px-2 py-1 text-sm focus:outline-pink-500"
+                  >
+                    <option value="">Todos os lançamentos</option>
+                    {launchData.flatMap(group =>
+                      group.data
+                        .filter((d: any, i: number, arr: any[]) =>
+                          // Only show unique launches
+                          arr.findIndex((x: any) => x.id_lancamento === d.id_lancamento) === i
+                        )
+                        .map((d: any) => (
+                          <option key={d.id_lancamento} value={d.id_lancamento}>
+                            Lançamento #{d.id_lancamento} ({d.tipo}) - {new Date(d.timestamp).toLocaleString('pt-BR')}
+                          </option>
+                        ))
+                    )}
+                  </select>
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="pt-4 sm:pt-6">
-              <LaunchCharts launchData={launchData} />
+              <LaunchCharts
+                launchData={selectedLaunchId
+                  ? launchData.map(group => ({
+                    ...group,
+                    data: group.data.filter((d: any) => d.id_lancamento === selectedLaunchId)
+                  }))
+                  : launchData
+                }
+              />
             </CardContent>
           </Card>
         </TabsContent>

@@ -40,12 +40,12 @@ export const DadosController: EndpointController = {
                     });
                 }
 
-                console.log("Dados de lançamento encontrados:", JSON.stringify(dadosLancamento, null, 2));
 
                 // Group launches by tipo and transform data
                 const launchsByTipo: { [key: string]: any[] } = {};
 
                 dadosLancamento.forEach((dadoLancamento: any) => {
+                    console.log("Dado de lançamento:", JSON.stringify(dadoLancamento, null, 2));
                     const parsed = parseDadosLancamento(dadoLancamento);
 
                     if (!launchsByTipo[parsed.tipo]) {
